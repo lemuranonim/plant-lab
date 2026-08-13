@@ -38,8 +38,9 @@ export default function LoginPage() {
         <div className={styles.glowCircle1}></div>
         <div className={styles.glowCircle2}></div>
         <div className={styles.brandContent}>
+          <img src="/logo_plant_lab.png" alt="Plant+Lab Logo" style={{ width: '80px', height: '80px', marginBottom: '16px', objectFit: 'contain' }} />
           <h1 className={styles.brandTitle}>Plant+Lab</h1>
-          <p className={styles.brandTagline}>Premium Quality Management Platform</p>
+          <p className={styles.brandTagline}>Advanta Quality Management Platform</p>
         </div>
       </div>
       <div className={styles.formPanel}>

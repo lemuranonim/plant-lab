@@ -27,14 +27,8 @@ export default async function DashboardLayout({
     <div className={styles.container}>
       <aside className={styles.sidebar}>
         <div className={styles.logo}>
-          <div className={styles.logoIcon}>
-            {/* Corn / Seed Sprout SVG */}
-            <svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-              <path d="M12 2a10 10 0 0 1 10 10c0 5.5-4.5 10-10 10S2 17.5 2 12A10 10 0 0 1 12 2z"></path>
-              <path d="M12 6v12"></path>
-              <path d="M8 10c2 0 4 2 4 4"></path>
-              <path d="M16 10c-2 0-4 2-4 4"></path>
-            </svg>
+          <div className={styles.logoIcon} style={{ background: 'none', width: '36px', height: '36px' }}>
+            <img src="/logo_plant_lab.png" alt="Plant+Lab Logo" style={{ width: '36px', height: '36px', objectFit: 'contain' }} />
           </div>
           <div className={styles.logoText}>
             <span className={styles.logoTitle}>Plant+Lab</span>
