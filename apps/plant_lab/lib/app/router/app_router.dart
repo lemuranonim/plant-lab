@@ -1,16 +1,24 @@
-// ignore_for_file: deprecated_member_use_from_same_package, unnecessary_import
+// ignore_for_file: deprecated_member_use_from_same_package
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../core/auth/auth_notifier.dart';
 import '../../core/auth/auth_state.dart';
+import '../../core/widgets/qr_barcode_scanner_screen.dart';
+import '../../features/splash/presentation/splash_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/dashboard/presentation/dashboard_screen.dart';
-import '../../features/lot/presentation/lot_list_screen.dart';
-import '../../features/plant_plan/presentation/plant_plan_list_screen.dart';
-import '../../features/plant_inspection/presentation/plant_inspection_list_screen.dart';
-import '../../features/plant_inspection/presentation/plant_inspection_form_screen.dart';
+
+import '../../features/receiving/presentation/receiving_list_screen.dart';
+import '../../features/receiving/presentation/receiving_form_screen.dart';
+import '../../features/lab_test/presentation/lab_test_list_screen.dart';
+import '../../features/lab_test/presentation/lab_test_form_screen.dart';
+import '../../features/lab_request/presentation/lab_request_list_screen.dart';
+import '../../features/lab_request/presentation/lab_request_form_screen.dart';
+import '../../features/plant_inspection/presentation/inspection_list_screen.dart';
+import '../../features/plant_inspection/presentation/inspection_process_selection_screen.dart';
+import '../../features/plant_inspection/presentation/dynamic_inspection_form_screen.dart';
 import 'navigation_shell.dart' as app_shell;
 
 part 'app_router.g.dart';
@@ -23,14 +31,17 @@ GoRouter appRouter(Ref ref) {
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/app/dashboard',
+    initialLocation: '/splash',
     redirect: (context, state) {
+      final matched = state.matchedLocation;
+      if (matched == '/splash') return null;
+
       final isAuthenticated = authState.valueOrNull?.maybeWhen(
         authenticated: (_) => true,
         orElse: () => false,
       ) ?? false;
 
-      final isLoginRoute = state.matchedLocation == '/login';
+      final isLoginRoute = matched == '/login';
 
       if (!isAuthenticated && !isLoginRoute) {
         return '/login';
@@ -44,8 +55,16 @@ GoRouter appRouter(Ref ref) {
     },
     routes: [
       GoRoute(
+        path: '/splash',
+        builder: (context, state) => const PlantLabSplashScreen(),
+      ),
+      GoRoute(
         path: '/login',
         builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/app/scanner',
+        builder: (context, state) => const QrBarcodeScannerScreen(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
@@ -63,28 +82,57 @@ GoRouter appRouter(Ref ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/app/lots',
-                builder: (context, state) => const LotListScreen(),
+                path: '/app/receiving',
+                builder: (context, state) => const ReceivingListScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'new',
+                    builder: (context, state) => const ReceivingFormScreen(),
+                  ),
+                ],
               ),
             ],
           ),
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/app/plant',
-                builder: (context, state) => const PlantPlanListScreen(),
+                path: '/app/inspections',
+                builder: (context, state) => const InspectionListScreen(),
                 routes: [
                   GoRoute(
-                    path: ':planId/inspections',
-                    builder: (context, state) => PlantInspectionListScreen(
-                      planId: state.pathParameters['planId']!,
-                    ),
+                    path: 'processes',
+                    builder: (context, state) => const InspectionProcessSelectionScreen(),
                   ),
                   GoRoute(
-                    path: ':planId/inspection/new',
-                    builder: (context, state) => PlantInspectionFormScreen(
-                      planId: state.pathParameters['planId']!,
-                    ),
+                    path: 'new/:processType',
+                    builder: (context, state) {
+                      final pType = state.pathParameters['processType'] ?? 'INTAKE';
+                      return DynamicInspectionFormScreen(processType: pType);
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/app/lab',
+                builder: (context, state) => const LabTestListScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'new',
+                    builder: (context, state) => const LabTestFormScreen(),
+                  ),
+                  GoRoute(
+                    path: 'requests',
+                    builder: (context, state) => const LabRequestListScreen(),
+                    routes: [
+                      GoRoute(
+                        path: 'new',
+                        builder: (context, state) => const LabRequestFormScreen(),
+                      ),
+                    ],
                   ),
                 ],
               ),

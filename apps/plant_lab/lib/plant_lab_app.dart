@@ -14,7 +14,7 @@ class PlantLabApp extends ConsumerWidget {
       title: 'Plant+Lab',
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.dark,
+      themeMode: ThemeMode.system,
       routerConfig: router,
       debugShowCheckedModeBanner: false,
     );
