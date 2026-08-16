@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:plant_lab/core/config/app_config.dart';
 
 part 'lab_repository.g.dart';
 
@@ -23,8 +24,9 @@ class LabRepository {
     required double germNormalPct,
     required double soakNormalPct,
   }) async {
+    AppConfig.requireOperationalWritesEnabled();
     final now = DateTime.now().toIso8601String();
-    
+
     // Business Logic: Automate Conclusion based on Blueprint threshold (>= 80% is Passed)
     String conclusion = 'YF'; // Marginal by default
     if (germNormalPct >= 80) {

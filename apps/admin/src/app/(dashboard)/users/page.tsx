@@ -1,3 +1,5 @@
+import { operationalWritesEnabled } from '@/lib/operationalMode';
+
 export default function UsersPage() {
   return (
     <div style={{ animation: 'fadeIn 0.5s ease-out' }}>
@@ -7,7 +9,17 @@ export default function UsersPage() {
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Role Definitions</h2>
-          <button className="btn btn-primary">+ Assign Role</button>
+          <button
+            className="btn btn-primary"
+            disabled={!operationalWritesEnabled}
+            title={
+              operationalWritesEnabled
+                ? 'Assign role'
+                : 'Disabled while Plant/Lab is in read-only mode'
+            }
+          >
+            {operationalWritesEnabled ? '+ Assign Role' : 'Read-only'}
+          </button>
         </div>
 
         <div style={{ overflowX: 'auto' }}>

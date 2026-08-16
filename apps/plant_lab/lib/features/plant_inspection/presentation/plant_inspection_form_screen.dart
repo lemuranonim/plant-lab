@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:plant_lab/core/config/app_config.dart';
 
 class PlantInspectionFormScreen extends ConsumerStatefulWidget {
   final String planId;
@@ -78,11 +79,14 @@ class _PlantInspectionFormScreenState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(_isOos
-                ? 'Inspeksi tersimpan dengan status OUT OF SPEC (OOS)'
-                : 'Inspeksi berhasil dikirim!'),
-            backgroundColor:
-                _isOos ? const Color(0xFFF59E0B) : const Color(0xFF22C55E),
+            content: Text(
+              _isOos
+                  ? 'Inspeksi tersimpan dengan status OUT OF SPEC (OOS)'
+                  : 'Inspeksi berhasil dikirim!',
+            ),
+            backgroundColor: _isOos
+                ? const Color(0xFFF59E0B)
+                : const Color(0xFF22C55E),
           ),
         );
         context.pop();
@@ -123,7 +127,9 @@ class _PlantInspectionFormScreenState
         ),
         actions: [
           TextButton.icon(
-            onPressed: _isSubmitting ? null : _handleSubmit,
+            onPressed: AppConfig.operationalWritesEnabled && !_isSubmitting
+                ? _handleSubmit
+                : null,
             icon: _isSubmitting
                 ? const SizedBox(
                     width: 14,
@@ -135,7 +141,11 @@ class _PlantInspectionFormScreenState
                   )
                 : const Icon(Icons.check, color: Color(0xFF22C55E), size: 20),
             label: Text(
-              _isSubmitting ? 'Kirim...' : 'Simpan',
+              _isSubmitting
+                  ? 'Kirim...'
+                  : (AppConfig.operationalWritesEnabled
+                        ? 'Simpan'
+                        : 'Read-only'),
               style: const TextStyle(
                 color: Color(0xFF22C55E),
                 fontFamily: 'Inter',
@@ -162,8 +172,7 @@ class _PlantInspectionFormScreenState
                 ),
                 child: const Row(
                   children: [
-                    Icon(Icons.warning_amber_rounded,
-                        color: Color(0xFFEF4444)),
+                    Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444)),
                     SizedBox(width: 10),
                     Expanded(
                       child: Text(
@@ -279,34 +288,39 @@ class _PlantInspectionFormScreenState
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
-                children: [
-                  ('EXCELLENT', 'Sangat Baik', const Color(0xFF22C55E)),
-                  ('GOOD', 'Baik', const Color(0xFF16A34A)),
-                  ('FAIR', 'Cukup', const Color(0xFFF59E0B)),
-                  ('POOR', 'Buruk (OOS)', const Color(0xFFEF4444)),
-                ].map((item) {
-                  final selected = _visualQuality == item.$1;
-                  return ChoiceChip(
-                    label: Text(
-                      item.$2,
-                      style: TextStyle(
-                        color: selected ? Colors.white : const Color(0xFF4B7A5F),
-                        fontFamily: 'Inter',
-                        fontSize: 12,
-                        fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                      ),
-                    ),
-                    selected: selected,
-                    selectedColor: item.$3,
-                    backgroundColor: const Color(0xFF162019),
-                    onSelected: (val) {
-                      if (val) {
-                        setState(() => _visualQuality = item.$1);
-                        _evalOos();
-                      }
-                    },
-                  );
-                }).toList(),
+                children:
+                    [
+                      ('EXCELLENT', 'Sangat Baik', const Color(0xFF22C55E)),
+                      ('GOOD', 'Baik', const Color(0xFF16A34A)),
+                      ('FAIR', 'Cukup', const Color(0xFFF59E0B)),
+                      ('POOR', 'Buruk (OOS)', const Color(0xFFEF4444)),
+                    ].map((item) {
+                      final selected = _visualQuality == item.$1;
+                      return ChoiceChip(
+                        label: Text(
+                          item.$2,
+                          style: TextStyle(
+                            color: selected
+                                ? Colors.white
+                                : const Color(0xFF4B7A5F),
+                            fontFamily: 'Inter',
+                            fontSize: 12,
+                            fontWeight: selected
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                          ),
+                        ),
+                        selected: selected,
+                        selectedColor: item.$3,
+                        backgroundColor: const Color(0xFF162019),
+                        onSelected: (val) {
+                          if (val) {
+                            setState(() => _visualQuality = item.$1);
+                            _evalOos();
+                          }
+                        },
+                      );
+                    }).toList(),
               ),
             ]),
 
@@ -321,7 +335,10 @@ class _PlantInspectionFormScreenState
                   ElevatedButton.icon(
                     onPressed: () => _pickImage(ImageSource.camera),
                     icon: const Icon(Icons.camera_alt, size: 16),
-                    label: const Text('Kamera', style: TextStyle(fontFamily: 'Inter')),
+                    label: const Text(
+                      'Kamera',
+                      style: TextStyle(fontFamily: 'Inter'),
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF16A34A),
                       foregroundColor: Colors.white,
@@ -331,7 +348,10 @@ class _PlantInspectionFormScreenState
                   OutlinedButton.icon(
                     onPressed: () => _pickImage(ImageSource.gallery),
                     icon: const Icon(Icons.photo_library, size: 16),
-                    label: const Text('Galeri', style: TextStyle(fontFamily: 'Inter')),
+                    label: const Text(
+                      'Galeri',
+                      style: TextStyle(fontFamily: 'Inter'),
+                    ),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFF86EFAC),
                       side: const BorderSide(color: Color(0xFF1F4A30)),
@@ -357,10 +377,14 @@ class _PlantInspectionFormScreenState
                               decoration: BoxDecoration(
                                 color: const Color(0xFF1F4A30),
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: const Color(0xFF22C55E)),
+                                border: Border.all(
+                                  color: const Color(0xFF22C55E),
+                                ),
                               ),
-                              child: const Icon(Icons.image,
-                                  color: Color(0xFF86EFAC)),
+                              child: const Icon(
+                                Icons.image,
+                                color: Color(0xFF86EFAC),
+                              ),
                             ),
                             Positioned(
                               top: 2,
@@ -377,8 +401,11 @@ class _PlantInspectionFormScreenState
                                     color: Color(0xB3000000),
                                     shape: BoxShape.circle,
                                   ),
-                                  child: const Icon(Icons.close,
-                                      size: 14, color: Colors.white),
+                                  child: const Icon(
+                                    Icons.close,
+                                    size: 14,
+                                    color: Colors.white,
+                                  ),
                                 ),
                               ),
                             ),
@@ -400,7 +427,10 @@ class _PlantInspectionFormScreenState
               TextFormField(
                 maxLines: 3,
                 style: const TextStyle(
-                    color: Color(0xFFF0FDF4), fontFamily: 'Inter', fontSize: 13),
+                  color: Color(0xFFF0FDF4),
+                  fontFamily: 'Inter',
+                  fontSize: 13,
+                ),
                 decoration: const InputDecoration(
                   hintText: 'Tuliskan catatan inspeksi atau temuan khusus...',
                   hintStyle: TextStyle(color: Color(0xFF4B7A5F)),

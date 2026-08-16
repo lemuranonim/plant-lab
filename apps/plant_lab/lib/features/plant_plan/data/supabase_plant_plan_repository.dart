@@ -1,4 +1,5 @@
 import 'package:plant_lab/core/database/supabase_client.dart';
+import 'package:plant_lab/core/config/app_config.dart';
 import 'package:plant_lab/features/plant_plan/domain/plant_plan.dart';
 import 'package:plant_lab/features/plant_plan/domain/plant_plan_repository.dart';
 
@@ -11,9 +12,7 @@ class SupabasePlantPlanRepository implements PlantPlanRepository {
     int page = 0,
     int pageSize = 25,
   }) async {
-    dynamic query = supabase
-        .from('plant.process_plans')
-        .select('''
+    dynamic query = supabase.from('plant.process_plans').select('''
           id,
           plan_code,
           lot_id,
@@ -70,12 +69,16 @@ class SupabasePlantPlanRepository implements PlantPlanRepository {
     required String siteId,
     String? notes,
   }) async {
-    final result = await supabase.rpc('plant.create_process_plan', params: {
-      'p_lot_id': lotId,
-      'p_process_type_id': processTypeId,
-      'p_site_id': siteId,
-      'p_notes': notes,
-    });
+    AppConfig.requireOperationalWritesEnabled();
+    final result = await supabase.rpc(
+      'plant.create_process_plan',
+      params: {
+        'p_lot_id': lotId,
+        'p_process_type_id': processTypeId,
+        'p_site_id': siteId,
+        'p_notes': notes,
+      },
+    );
     return getPlantPlanById(result['plan_id'] as String);
   }
 
@@ -85,11 +88,11 @@ class SupabasePlantPlanRepository implements PlantPlanRepository {
     required String action,
     String? notes,
   }) async {
-    await supabase.rpc('plant.advance_process_step', params: {
-      'p_step_id': stepId,
-      'p_action': action,
-      'p_notes': notes,
-    });
+    AppConfig.requireOperationalWritesEnabled();
+    await supabase.rpc(
+      'plant.advance_process_step',
+      params: {'p_step_id': stepId, 'p_action': action, 'p_notes': notes},
+    );
   }
 
   PlantPlanSummary _mapToSummary(Map<String, dynamic> d) {
@@ -97,7 +100,9 @@ class SupabasePlantPlanRepository implements PlantPlanRepository {
     final product = lot?['products'] as Map<String, dynamic>?;
     final site = d['sites'] as Map<String, dynamic>?;
     final steps = (d['process_steps'] as List?)?.cast<Map<String, dynamic>>();
-    final currentStep = steps?.where((s) => s['status'] == 'IN_PROGRESS').firstOrNull;
+    final currentStep = steps
+        ?.where((s) => s['status'] == 'IN_PROGRESS')
+        .firstOrNull;
     return PlantPlanSummary(
       id: d['id'] as String,
       planCode: d['plan_code'] as String,
@@ -161,9 +166,7 @@ class SupabasePlantPlanRepository implements PlantPlanRepository {
       completedAt: d['completed_at'] != null
           ? DateTime.parse(d['completed_at'] as String)
           : null,
-      dueAt: d['due_at'] != null
-          ? DateTime.parse(d['due_at'] as String)
-          : null,
+      dueAt: d['due_at'] != null ? DateTime.parse(d['due_at'] as String) : null,
     );
   }
 }

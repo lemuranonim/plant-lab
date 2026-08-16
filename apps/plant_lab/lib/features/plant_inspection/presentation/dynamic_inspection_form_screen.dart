@@ -6,21 +6,21 @@ import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_text_styles.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/photo_evidence_picker.dart';
+import '../../../core/config/app_config.dart';
 import '../data/inspection_repository.dart';
 
 class DynamicInspectionFormScreen extends ConsumerStatefulWidget {
   final String processType;
 
-  const DynamicInspectionFormScreen({
-    super.key,
-    required this.processType,
-  });
+  const DynamicInspectionFormScreen({super.key, required this.processType});
 
   @override
-  ConsumerState<DynamicInspectionFormScreen> createState() => _DynamicInspectionFormScreenState();
+  ConsumerState<DynamicInspectionFormScreen> createState() =>
+      _DynamicInspectionFormScreenState();
 }
 
-class _DynamicInspectionFormScreenState extends ConsumerState<DynamicInspectionFormScreen> {
+class _DynamicInspectionFormScreenState
+    extends ConsumerState<DynamicInspectionFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final Map<String, dynamic> _formData = {};
   List<File> _mcPhotos = [];
@@ -31,8 +31,12 @@ class _DynamicInspectionFormScreenState extends ConsumerState<DynamicInspectionF
   Widget build(BuildContext context) {
     final repository = ref.watch(inspectionRepositoryProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryTextColor = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
-    final mutedTextColor = isDark ? AppColors.textMutedDark : AppColors.textMutedLight;
+    final primaryTextColor = isDark
+        ? AppColors.textPrimaryDark
+        : AppColors.textPrimaryLight;
+    final mutedTextColor = isDark
+        ? AppColors.textMutedDark
+        : AppColors.textMutedLight;
 
     return Scaffold(
       appBar: AppBar(
@@ -56,7 +60,9 @@ class _DynamicInspectionFormScreenState extends ConsumerState<DynamicInspectionF
 
           final template = snapshot.data!;
           final rawFields = template['fields'];
-          final List<dynamic> fields = rawFields is Map ? (rawFields['fields'] ?? []) : [];
+          final List<dynamic> fields = rawFields is Map
+              ? (rawFields['fields'] ?? [])
+              : [];
 
           // Determine if MC or PP parameters exist to set mandatory photo requirements (Rule R-002 & R-003)
           final hasMcParam = fields.any((f) {
@@ -87,7 +93,11 @@ class _DynamicInspectionFormScreenState extends ConsumerState<DynamicInspectionF
                               color: AppColors.accent.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: const Icon(Icons.assignment, color: AppColors.accent, size: 20),
+                            child: const Icon(
+                              Icons.assignment,
+                              color: AppColors.accent,
+                              size: 20,
+                            ),
                           ),
                           const SizedBox(width: 12),
                           Text(
@@ -102,7 +112,9 @@ class _DynamicInspectionFormScreenState extends ConsumerState<DynamicInspectionF
                       const SizedBox(height: 8),
                       Text(
                         'Isi data hasil pengawasan sesuai parameter di bawah ini:',
-                        style: AppTextStyles.caption.copyWith(color: mutedTextColor),
+                        style: AppTextStyles.caption.copyWith(
+                          color: mutedTextColor,
+                        ),
                       ),
                     ],
                   ),
@@ -114,7 +126,11 @@ class _DynamicInspectionFormScreenState extends ConsumerState<DynamicInspectionF
                   final fieldMap = field as Map<String, dynamic>;
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 16),
-                    child: _buildDynamicField(fieldMap, primaryTextColor, mutedTextColor),
+                    child: _buildDynamicField(
+                      fieldMap,
+                      primaryTextColor,
+                      mutedTextColor,
+                    ),
                   );
                 }),
 
@@ -123,7 +139,8 @@ class _DynamicInspectionFormScreenState extends ConsumerState<DynamicInspectionF
                   const SizedBox(height: 8),
                   PhotoEvidencePicker(
                     title: 'Foto Bukti Kadar Air (MC)',
-                    subtitle: 'Wajib mengunggah minimal 3 foto bukti pengujian MC (Aturan R-002)',
+                    subtitle:
+                        'Wajib mengunggah minimal 3 foto bukti pengujian MC (Aturan R-002)',
                     minPhotos: 3,
                     onPhotosChanged: (photos) {
                       setState(() => _mcPhotos = photos);
@@ -137,7 +154,8 @@ class _DynamicInspectionFormScreenState extends ConsumerState<DynamicInspectionF
                   const SizedBox(height: 8),
                   PhotoEvidencePicker(
                     title: 'Foto Bukti Kemurnian Fisik (PP)',
-                    subtitle: 'Wajib mengunggah minimal 1 foto bukti pengujian PP (Aturan R-003)',
+                    subtitle:
+                        'Wajib mengunggah minimal 1 foto bukti pengujian PP (Aturan R-003)',
                     minPhotos: 1,
                     onPhotosChanged: (photos) {
                       setState(() => _ppPhotos = photos);
@@ -148,14 +166,24 @@ class _DynamicInspectionFormScreenState extends ConsumerState<DynamicInspectionF
 
                 const SizedBox(height: 16),
                 ElevatedButton(
-                  onPressed: _isSubmitting ? null : () => _submitForm(fields, hasMcParam, hasPpParam),
+                  onPressed:
+                      AppConfig.operationalWritesEnabled && !_isSubmitting
+                      ? () => _submitForm(fields, hasMcParam, hasPpParam)
+                      : null,
                   child: _isSubmitting
                       ? const SizedBox(
                           height: 20,
                           width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
                         )
-                      : Text('Simpan Inspeksi ${widget.processType.toUpperCase()}'),
+                      : Text(
+                          AppConfig.operationalWritesEnabled
+                              ? 'Simpan Inspeksi ${widget.processType.toUpperCase()}'
+                              : 'Mode read-only aktif',
+                        ),
                 ),
               ],
             ),
@@ -165,7 +193,11 @@ class _DynamicInspectionFormScreenState extends ConsumerState<DynamicInspectionF
     );
   }
 
-  Widget _buildDynamicField(Map<String, dynamic> field, Color primaryTextColor, Color mutedTextColor) {
+  Widget _buildDynamicField(
+    Map<String, dynamic> field,
+    Color primaryTextColor,
+    Color mutedTextColor,
+  ) {
     final key = field['key'] as String;
     final label = field['label'] as String;
     final type = field['type'] as String;
@@ -173,7 +205,9 @@ class _DynamicInspectionFormScreenState extends ConsumerState<DynamicInspectionF
 
     if (type == 'text' || type == 'number' || type == 'textarea') {
       return TextFormField(
-        keyboardType: type == 'number' ? TextInputType.number : TextInputType.text,
+        keyboardType: type == 'number'
+            ? TextInputType.number
+            : TextInputType.text,
         maxLines: type == 'textarea' ? 3 : 1,
         decoration: InputDecoration(
           labelText: label + (isRequired ? ' *' : ''),
@@ -245,14 +279,20 @@ class _DynamicInspectionFormScreenState extends ConsumerState<DynamicInspectionF
     return const SizedBox.shrink();
   }
 
-  Future<void> _submitForm(List<dynamic> fields, bool hasMcParam, bool hasPpParam) async {
+  Future<void> _submitForm(
+    List<dynamic> fields,
+    bool hasMcParam,
+    bool hasPpParam,
+  ) async {
     if (!_formKey.currentState!.validate()) return;
 
     // Enforce Rule R-002: Minimum 3 MC Photos
     if (hasMcParam && _mcPhotos.length < 3) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Aturan R-002: Anda wajib melampirkan minimal 3 foto bukti pengujian MC!'),
+          content: Text(
+            'Aturan R-002: Anda wajib melampirkan minimal 3 foto bukti pengujian MC!',
+          ),
           backgroundColor: AppColors.danger,
         ),
       );
@@ -260,10 +300,12 @@ class _DynamicInspectionFormScreenState extends ConsumerState<DynamicInspectionF
     }
 
     // Enforce Rule R-003: Minimum 1 PP Photo
-    if (hasPpParam && _ppPhotos.length < 1) {
+    if (hasPpParam && _ppPhotos.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Aturan R-003: Anda wajib melampirkan minimal 1 foto bukti pengujian PP!'),
+          content: Text(
+            'Aturan R-003: Anda wajib melampirkan minimal 1 foto bukti pengujian PP!',
+          ),
           backgroundColor: AppColors.danger,
         ),
       );

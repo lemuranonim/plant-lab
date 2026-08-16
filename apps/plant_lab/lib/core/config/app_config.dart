@@ -1,11 +1,26 @@
 // Reads from --dart-define at build time
 class AppConfig {
+  /// P0 safety switch. Builds are read-only unless explicitly enabled after
+  /// the canonical write APIs and production RLS have passed P0-B/UAT.
+  static const operationalWritesEnabled = bool.fromEnvironment(
+    'OPERATIONAL_WRITES_ENABLED',
+    defaultValue: false,
+  );
+
+  static void requireOperationalWritesEnabled() {
+    if (!operationalWritesEnabled) {
+      throw StateError(
+        'Mode read-only aktif. Operasi tulis Plant/Lab belum diaktifkan.',
+      );
+    }
+  }
+
   static const supabaseUrl = String.fromEnvironment(
     'SUPABASE_URL',
     defaultValue: 'https://bstxdyyglxrrfqgohllz.supabase.co',
   );
-  static const supabaseAnonKey = String.fromEnvironment(
-    'SUPABASE_ANON_KEY',
-    defaultValue: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJzdHhkeXlnbHhycmZxZ29obGx6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1MzIwMjcsImV4cCI6MjA3MzEwODAyN30.3eB08aX-Nltd8DPqk7sIWH6b8r4clPbgmIeEdyCV5Uk',
+  static const supabasePublishableKey = String.fromEnvironment(
+    'SUPABASE_PUBLISHABLE_KEY',
+    defaultValue: String.fromEnvironment('SUPABASE_ANON_KEY'),
   );
 }

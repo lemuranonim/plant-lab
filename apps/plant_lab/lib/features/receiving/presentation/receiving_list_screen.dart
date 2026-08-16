@@ -6,6 +6,7 @@ import '../../../app/theme/app_text_styles.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/status_badge.dart';
 import '../../../core/widgets/loading_shimmer.dart';
+import '../../../core/config/app_config.dart';
 import '../data/receiving_repository.dart';
 
 class ReceivingListScreen extends ConsumerWidget {
@@ -15,9 +16,15 @@ class ReceivingListScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final harvestsAsync = ref.watch(recentHarvestsProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryTextColor = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
-    final secondaryTextColor = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
-    final mutedTextColor = isDark ? AppColors.textMutedDark : AppColors.textMutedLight;
+    final primaryTextColor = isDark
+        ? AppColors.textPrimaryDark
+        : AppColors.textPrimaryLight;
+    final secondaryTextColor = isDark
+        ? AppColors.textSecondaryDark
+        : AppColors.textSecondaryLight;
+    final mutedTextColor = isDark
+        ? AppColors.textMutedDark
+        : AppColors.textMutedLight;
 
     return Scaffold(
       appBar: AppBar(
@@ -25,7 +32,9 @@ class ReceivingListScreen extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () => context.go('/app/receiving/new'),
+            onPressed: AppConfig.operationalWritesEnabled
+                ? () => context.go('/app/receiving/new')
+                : null,
           ),
         ],
       ),
@@ -68,7 +77,11 @@ class ReceivingListScreen extends ConsumerWidget {
                         const SizedBox(height: 8),
                         Row(
                           children: [
-                            Icon(Icons.eco, size: 16, color: AppColors.accent),
+                            const Icon(
+                              Icons.eco,
+                              size: 16,
+                              color: AppColors.accent,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               item['hybrid_code'] ?? '-',
@@ -92,7 +105,9 @@ class ReceivingListScreen extends ConsumerWidget {
                         const SizedBox(height: 8),
                         Text(
                           'Date: ${item['incoming_date'] != null ? item['incoming_date'].toString().split('T')[0] : '-'}',
-                          style: AppTextStyles.caption.copyWith(color: mutedTextColor),
+                          style: AppTextStyles.caption.copyWith(
+                            color: mutedTextColor,
+                          ),
                         ),
                       ],
                     ),
@@ -107,13 +122,20 @@ class ReceivingListScreen extends ConsumerWidget {
           child: ShimmerList(itemCount: 5),
         ),
         error: (err, stack) => Center(
-          child: Text('Error: $err', style: const TextStyle(color: AppColors.danger)),
+          child: Text(
+            'Error: $err',
+            style: const TextStyle(color: AppColors.danger),
+          ),
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.go('/app/receiving/new'),
+        onPressed: AppConfig.operationalWritesEnabled
+            ? () => context.go('/app/receiving/new')
+            : null,
         icon: const Icon(Icons.add),
-        label: const Text('New Intake'),
+        label: const Text(
+          AppConfig.operationalWritesEnabled ? 'New Intake' : 'Read-only',
+        ),
         backgroundColor: AppColors.accent,
         foregroundColor: Colors.white,
       ),

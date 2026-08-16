@@ -6,6 +6,7 @@ import '../../../app/theme/app_text_styles.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/status_badge.dart';
 import '../../../core/widgets/loading_shimmer.dart';
+import '../../../core/config/app_config.dart';
 import '../data/lab_request_repository.dart';
 import 'sample_tracker_detail_screen.dart';
 
@@ -16,9 +17,15 @@ class LabRequestListScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final requestsAsync = ref.watch(labRequestsProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryTextColor = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
-    final secondaryTextColor = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
-    final mutedTextColor = isDark ? AppColors.textMutedDark : AppColors.textMutedLight;
+    final primaryTextColor = isDark
+        ? AppColors.textPrimaryDark
+        : AppColors.textPrimaryLight;
+    final secondaryTextColor = isDark
+        ? AppColors.textSecondaryDark
+        : AppColors.textSecondaryLight;
+    final mutedTextColor = isDark
+        ? AppColors.textMutedDark
+        : AppColors.textMutedLight;
 
     return Scaffold(
       appBar: AppBar(
@@ -26,7 +33,9 @@ class LabRequestListScreen extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () => context.push('/app/lab/requests/new'),
+            onPressed: AppConfig.operationalWritesEnabled
+                ? () => context.push('/app/lab/requests/new')
+                : null,
           ),
         ],
       ),
@@ -37,22 +46,37 @@ class LabRequestListScreen extends ConsumerWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.local_shipping_outlined, size: 64, color: mutedTextColor),
+                  Icon(
+                    Icons.local_shipping_outlined,
+                    size: 64,
+                    color: mutedTextColor,
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     'Belum Ada Request Sampel Lab',
-                    style: AppTextStyles.body1.copyWith(color: primaryTextColor, fontWeight: FontWeight.bold),
+                    style: AppTextStyles.body1.copyWith(
+                      color: primaryTextColor,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Buat permintaan pengujian lab baru untuk Lot benih',
-                    style: AppTextStyles.caption.copyWith(color: mutedTextColor),
+                    style: AppTextStyles.caption.copyWith(
+                      color: mutedTextColor,
+                    ),
                   ),
                   const SizedBox(height: 24),
                   ElevatedButton.icon(
-                    onPressed: () => context.push('/app/lab/requests/new'),
+                    onPressed: AppConfig.operationalWritesEnabled
+                        ? () => context.push('/app/lab/requests/new')
+                        : null,
                     icon: const Icon(Icons.add),
-                    label: const Text('Buat Request Sampel Baru'),
+                    label: const Text(
+                      AppConfig.operationalWritesEnabled
+                          ? 'Buat Request Sampel Baru'
+                          : 'Mode read-only aktif',
+                    ),
                   ),
                 ],
               ),
@@ -83,7 +107,11 @@ class LabRequestListScreen extends ConsumerWidget {
                   padding: const EdgeInsets.only(bottom: 12),
                   child: AppCard(
                     onTap: () {
-                      SampleTrackerDetailScreen.show(context, item: item, ref: ref);
+                      SampleTrackerDetailScreen.show(
+                        context,
+                        item: item,
+                        ref: ref,
+                      );
                     },
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -93,7 +121,7 @@ class LabRequestListScreen extends ConsumerWidget {
                           children: [
                             Text(
                               reqNo,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontFamily: 'Inter',
                                 fontSize: 13,
                                 fontWeight: FontWeight.bold,
@@ -115,9 +143,14 @@ class LabRequestListScreen extends ConsumerWidget {
                             ),
                             const Spacer(),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
-                                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                                color: isDark
+                                    ? const Color(0xFF1E293B)
+                                    : const Color(0xFFF1F5F9),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
@@ -134,7 +167,10 @@ class LabRequestListScreen extends ConsumerWidget {
                         const SizedBox(height: 6),
                         Text(
                           'Pengujian: $testType',
-                          style: AppTextStyles.body2.copyWith(color: secondaryTextColor, fontWeight: FontWeight.w500),
+                          style: AppTextStyles.body2.copyWith(
+                            color: secondaryTextColor,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         Row(
@@ -142,11 +178,15 @@ class LabRequestListScreen extends ConsumerWidget {
                           children: [
                             Text(
                               'Pengambil: $samplerName',
-                              style: AppTextStyles.caption.copyWith(color: mutedTextColor),
+                              style: AppTextStyles.caption.copyWith(
+                                color: mutedTextColor,
+                              ),
                             ),
                             Text(
                               'Tgl: $requestedAt',
-                              style: AppTextStyles.caption.copyWith(color: mutedTextColor),
+                              style: AppTextStyles.caption.copyWith(
+                                color: mutedTextColor,
+                              ),
                             ),
                           ],
                         ),
@@ -163,13 +203,20 @@ class LabRequestListScreen extends ConsumerWidget {
           child: ShimmerList(itemCount: 5),
         ),
         error: (err, stack) => Center(
-          child: Text('Error: $err', style: const TextStyle(color: AppColors.danger)),
+          child: Text(
+            'Error: $err',
+            style: const TextStyle(color: AppColors.danger),
+          ),
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/app/lab/requests/new'),
+        onPressed: AppConfig.operationalWritesEnabled
+            ? () => context.push('/app/lab/requests/new')
+            : null,
         icon: const Icon(Icons.send),
-        label: const Text('New Request'),
+        label: const Text(
+          AppConfig.operationalWritesEnabled ? 'New Request' : 'Read-only',
+        ),
         backgroundColor: AppColors.accent,
         foregroundColor: Colors.white,
       ),

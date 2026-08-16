@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import styles from './dashboard-layout.module.css';
 import LogoutButton from './LogoutButton';
 import ThemeToggle from '@/components/ThemeToggle';
+import { operationalWritesEnabled } from '@/lib/operationalMode';
 
 export default async function DashboardLayout({
   children,
@@ -139,6 +140,16 @@ export default async function DashboardLayout({
             <LogoutButton />
           </div>
         </header>
+
+        {!operationalWritesEnabled && (
+          <div className={styles.readOnlyBanner} role="status">
+            <strong>Read-only mode</strong>
+            <span>
+              Data Plant/Lab dapat dilihat, tetapi perubahan belum diizinkan
+              selama hardening P0.
+            </span>
+          </div>
+        )}
 
         <main className={styles.mainContent}>{children}</main>
       </div>
