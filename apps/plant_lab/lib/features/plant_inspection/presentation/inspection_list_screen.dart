@@ -6,6 +6,7 @@ import '../../../app/theme/app_text_styles.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/status_badge.dart';
 import '../../../core/widgets/loading_shimmer.dart';
+import '../../../core/config/app_config.dart';
 import '../data/inspection_repository.dart';
 
 class InspectionListScreen extends ConsumerWidget {
@@ -15,9 +16,15 @@ class InspectionListScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final inspectionsAsync = ref.watch(recentInspectionsProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryTextColor = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
-    final secondaryTextColor = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
-    final mutedTextColor = isDark ? AppColors.textMutedDark : AppColors.textMutedLight;
+    final primaryTextColor = isDark
+        ? AppColors.textPrimaryDark
+        : AppColors.textPrimaryLight;
+    final secondaryTextColor = isDark
+        ? AppColors.textSecondaryDark
+        : AppColors.textSecondaryLight;
+    final mutedTextColor = isDark
+        ? AppColors.textMutedDark
+        : AppColors.textMutedLight;
 
     return Scaffold(
       appBar: AppBar(
@@ -25,7 +32,9 @@ class InspectionListScreen extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () => context.go('/app/inspections/processes'),
+            onPressed: AppConfig.operationalWritesEnabled
+                ? () => context.go('/app/inspections/processes')
+                : null,
           ),
         ],
       ),
@@ -36,22 +45,37 @@ class InspectionListScreen extends ConsumerWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.assignment_outlined, size: 64, color: mutedTextColor),
+                  Icon(
+                    Icons.assignment_outlined,
+                    size: 64,
+                    color: mutedTextColor,
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     'Belum Ada Inspeksi Plant Tersimpan',
-                    style: AppTextStyles.body1.copyWith(color: primaryTextColor, fontWeight: FontWeight.bold),
+                    style: AppTextStyles.body1.copyWith(
+                      color: primaryTextColor,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Klik tombol di bawah untuk mengisi inspeksi baru',
-                    style: AppTextStyles.caption.copyWith(color: mutedTextColor),
+                    style: AppTextStyles.caption.copyWith(
+                      color: mutedTextColor,
+                    ),
                   ),
                   const SizedBox(height: 24),
                   ElevatedButton.icon(
-                    onPressed: () => context.go('/app/inspections/processes'),
+                    onPressed: AppConfig.operationalWritesEnabled
+                        ? () => context.go('/app/inspections/processes')
+                        : null,
                     icon: const Icon(Icons.add),
-                    label: const Text('Isi Form Inspeksi baru'),
+                    label: const Text(
+                      AppConfig.operationalWritesEnabled
+                          ? 'Isi Form Inspeksi baru'
+                          : 'Mode read-only aktif',
+                    ),
                   ),
                 ],
               ),
@@ -70,12 +94,19 @@ class InspectionListScreen extends ConsumerWidget {
                 final item = inspections[index];
                 final processType = item['process_type'] ?? 'UNKNOWN';
                 final isOos = item['is_oos'] == true;
-                final dateRaw = item['created_at'] ?? item['submitted_at'] ?? item['inspection_date'];
+                final dateRaw =
+                    item['created_at'] ??
+                    item['submitted_at'] ??
+                    item['inspection_date'];
                 final inspectedAt = dateRaw != null
                     ? dateRaw.toString().split('T')[0]
                     : '-';
-                final inspectorEmail = item['inspector_email'] ?? 'Plant Inspector';
-                final notes = item['notes'] ?? item['remarks'] ?? 'Hasil pengawasan proses $processType';
+                final inspectorEmail =
+                    item['inspector_email'] ?? 'Plant Inspector';
+                final notes =
+                    item['notes'] ??
+                    item['remarks'] ??
+                    'Hasil pengawasan proses $processType';
 
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
@@ -87,7 +118,10 @@ class InspectionListScreen extends ConsumerWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
                                 color: AppColors.accent.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(8),
@@ -121,11 +155,15 @@ class InspectionListScreen extends ConsumerWidget {
                           children: [
                             Text(
                               'Oleh: $inspectorEmail',
-                              style: AppTextStyles.caption.copyWith(color: secondaryTextColor),
+                              style: AppTextStyles.caption.copyWith(
+                                color: secondaryTextColor,
+                              ),
                             ),
                             Text(
                               'Tanggal: $inspectedAt',
-                              style: AppTextStyles.caption.copyWith(color: mutedTextColor),
+                              style: AppTextStyles.caption.copyWith(
+                                color: mutedTextColor,
+                              ),
                             ),
                           ],
                         ),
@@ -142,13 +180,20 @@ class InspectionListScreen extends ConsumerWidget {
           child: ShimmerList(itemCount: 5),
         ),
         error: (err, stack) => Center(
-          child: Text('Error: $err', style: const TextStyle(color: AppColors.danger)),
+          child: Text(
+            'Error: $err',
+            style: const TextStyle(color: AppColors.danger),
+          ),
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.go('/app/inspections/processes'),
+        onPressed: AppConfig.operationalWritesEnabled
+            ? () => context.go('/app/inspections/processes')
+            : null,
         icon: const Icon(Icons.add),
-        label: const Text('New Inspection'),
+        label: const Text(
+          AppConfig.operationalWritesEnabled ? 'New Inspection' : 'Read-only',
+        ),
         backgroundColor: AppColors.accent,
         foregroundColor: Colors.white,
       ),

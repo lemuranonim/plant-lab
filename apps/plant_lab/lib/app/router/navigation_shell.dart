@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:plant_lab/core/widgets/operational_mode_banner.dart';
 
 class NavigationShell extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
 
-  const NavigationShell({
-    super.key,
-    required this.navigationShell,
-  });
+  const NavigationShell({super.key, required this.navigationShell});
 
   void _goBranch(int index) {
     navigationShell.goBranch(
@@ -19,7 +17,12 @@ class NavigationShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: navigationShell,
+      body: Column(
+        children: [
+          const OperationalModeBanner(),
+          Expanded(child: navigationShell),
+        ],
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: navigationShell.currentIndex,
         onTap: _goBranch,

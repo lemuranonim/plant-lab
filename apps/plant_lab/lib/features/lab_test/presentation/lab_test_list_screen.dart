@@ -6,6 +6,7 @@ import '../../../app/theme/app_text_styles.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/status_badge.dart';
 import '../../../core/widgets/loading_shimmer.dart';
+import '../../../core/config/app_config.dart';
 import '../data/lab_repository.dart';
 
 class LabTestListScreen extends ConsumerWidget {
@@ -15,9 +16,15 @@ class LabTestListScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final labTestsAsync = ref.watch(recentLabTestsProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryTextColor = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
-    final secondaryTextColor = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
-    final mutedTextColor = isDark ? AppColors.textMutedDark : AppColors.textMutedLight;
+    final primaryTextColor = isDark
+        ? AppColors.textPrimaryDark
+        : AppColors.textPrimaryLight;
+    final secondaryTextColor = isDark
+        ? AppColors.textSecondaryDark
+        : AppColors.textSecondaryLight;
+    final mutedTextColor = isDark
+        ? AppColors.textMutedDark
+        : AppColors.textMutedLight;
 
     return Scaffold(
       appBar: AppBar(
@@ -25,7 +32,9 @@ class LabTestListScreen extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () => context.go('/app/lab/new'),
+            onPressed: AppConfig.operationalWritesEnabled
+                ? () => context.go('/app/lab/new')
+                : null,
           ),
         ],
       ),
@@ -46,7 +55,7 @@ class LabTestListScreen extends ConsumerWidget {
                 final item = tests[index];
                 final germPct = item['germ_normal_pct'];
                 final soakPct = item['soak_normal_pct'];
-                
+
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: AppCard(
@@ -71,7 +80,11 @@ class LabTestListScreen extends ConsumerWidget {
                         const SizedBox(height: 8),
                         Row(
                           children: [
-                            Icon(Icons.eco, size: 16, color: AppColors.accent),
+                            const Icon(
+                              Icons.eco,
+                              size: 16,
+                              color: AppColors.accent,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               item['hybrid_code'] ?? '-',
@@ -84,7 +97,9 @@ class LabTestListScreen extends ConsumerWidget {
                             Text(
                               'Germ: ${germPct != null ? '$germPct%' : '-'}',
                               style: AppTextStyles.body2.copyWith(
-                                color: germPct != null && germPct >= 80 ? AppColors.accent : AppColors.warning,
+                                color: germPct != null && germPct >= 80
+                                    ? AppColors.accent
+                                    : AppColors.warning,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -96,11 +111,15 @@ class LabTestListScreen extends ConsumerWidget {
                           children: [
                             Text(
                               'Date: ${item['germ_date'] ?? '-'}',
-                              style: AppTextStyles.caption.copyWith(color: mutedTextColor),
+                              style: AppTextStyles.caption.copyWith(
+                                color: mutedTextColor,
+                              ),
                             ),
                             Text(
                               'Vigor: ${soakPct != null ? '$soakPct%' : '-'}',
-                              style: AppTextStyles.caption.copyWith(color: secondaryTextColor),
+                              style: AppTextStyles.caption.copyWith(
+                                color: secondaryTextColor,
+                              ),
                             ),
                           ],
                         ),
@@ -117,13 +136,20 @@ class LabTestListScreen extends ConsumerWidget {
           child: ShimmerList(itemCount: 5),
         ),
         error: (err, stack) => Center(
-          child: Text('Error: $err', style: const TextStyle(color: AppColors.danger)),
+          child: Text(
+            'Error: $err',
+            style: const TextStyle(color: AppColors.danger),
+          ),
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.go('/app/lab/new'),
+        onPressed: AppConfig.operationalWritesEnabled
+            ? () => context.go('/app/lab/new')
+            : null,
         icon: const Icon(Icons.science),
-        label: const Text('New Evaluation'),
+        label: const Text(
+          AppConfig.operationalWritesEnabled ? 'New Evaluation' : 'Read-only',
+        ),
         backgroundColor: AppColors.accent,
         foregroundColor: Colors.white,
       ),

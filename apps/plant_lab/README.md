@@ -1,16 +1,26 @@
-# plant_lab
+# Plant + Lab Mobile/Web
 
-A new Flutter project.
+Flutter client for the Advanta Plant/Lab quality workflow.
 
-## Getting Started
+## Safe default
 
-This project is a starting point for a Flutter application.
+Operational writes are disabled by default. The UI shows a read-only banner,
+write controls are disabled, and every repository write method has a second
+guard. Do not enable writes until the P0-B database hardening and UAT gates have
+passed.
 
-A few resources to get you started if this is your first Flutter project:
+Run or build with a Supabase publishable key:
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+```powershell
+flutter run `
+  --dart-define=SUPABASE_URL=https://PROJECT_REF.supabase.co `
+  --dart-define=SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxx
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+After a separately approved production release, writes can be enabled with:
+
+```text
+--dart-define=OPERATIONAL_WRITES_ENABLED=true
+```
+
+Never pass a Supabase secret/service-role key to this client.

@@ -201,3 +201,18 @@
   padding: 2rem;
   overflow-y: auto;
 }
+
+.readOnlyBanner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 1.5rem;
+  color: #7a4d00;
+  background: #fff3cd;
+  border-bottom: 1px solid #f0d889;
+  font-size: 0.8125rem;
+}
+
+.readOnlyBanner strong {
+  white-space: nowrap;
+}

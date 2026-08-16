@@ -1,9 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:plant_lab/core/config/app_config.dart';
 import '../../../core/database/supabase_client.dart';
 
 final labRequestRepositoryProvider = Provider((ref) => LabRequestRepository());
 
-final labRequestsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+final labRequestsProvider = FutureProvider<List<Map<String, dynamic>>>((
+  ref,
+) async {
   return ref.watch(labRequestRepositoryProvider).fetchLabRequests();
 });
 
@@ -22,9 +25,11 @@ class LabRequestRepository {
     required double sampleQtyGrams,
     String? notes,
   }) async {
+    AppConfig.requireOperationalWritesEnabled();
     final user = supabase.auth.currentUser;
     final now = DateTime.now();
-    final reqNo = 'REQ-${now.year}-${now.month.toString().padLeft(2, '0')}-${now.millisecondsSinceEpoch.toString().substring(7)}';
+    final reqNo =
+        'REQ-${now.year}-${now.month.toString().padLeft(2, '0')}-${now.millisecondsSinceEpoch.toString().substring(7)}';
 
     await supabase.from('pl_lab_requests').insert({
       'request_no': reqNo,
@@ -43,9 +48,13 @@ class LabRequestRepository {
     required String requestId,
     required String newStatus,
   }) async {
-    await supabase.from('pl_lab_requests').update({
-      'status': newStatus,
-      'updated_at': DateTime.now().toIso8601String(),
-    }).eq('id', requestId);
+    AppConfig.requireOperationalWritesEnabled();
+    await supabase
+        .from('pl_lab_requests')
+        .update({
+          'status': newStatus,
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', requestId);
   }
 }

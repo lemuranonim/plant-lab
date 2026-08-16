@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_text_styles.dart';
 import '../../../core/widgets/app_card.dart';
+import '../../../core/config/app_config.dart';
 import '../../receiving/data/receiving_repository.dart';
 import '../../lab_test/data/lab_repository.dart';
 import '../../plant_inspection/data/inspection_repository.dart';
@@ -14,8 +15,12 @@ class DashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryTextColor = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
-    final mutedTextColor = isDark ? AppColors.textMutedDark : AppColors.textMutedLight;
+    final primaryTextColor = isDark
+        ? AppColors.textPrimaryDark
+        : AppColors.textPrimaryLight;
+    final mutedTextColor = isDark
+        ? AppColors.textMutedDark
+        : AppColors.textMutedLight;
 
     return Scaffold(
       appBar: AppBar(
@@ -52,23 +57,42 @@ class DashboardScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.agriculture, color: AppColors.accent, size: 24),
-                        const SizedBox(height: 8),
-                        ref.watch(recentHarvestsProvider).when(
-                          data: (items) => Text(
-                            '${items.length}',
-                            style: AppTextStyles.heading2.copyWith(
-                              color: primaryTextColor,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          loading: () => Text('-', style: AppTextStyles.heading2.copyWith(color: primaryTextColor)),
-                          error: (_, __) => Text('0', style: AppTextStyles.heading2.copyWith(color: primaryTextColor)),
+                        const Icon(
+                          Icons.agriculture,
+                          color: AppColors.accent,
+                          size: 24,
                         ),
+                        const SizedBox(height: 8),
+                        ref
+                            .watch(recentHarvestsProvider)
+                            .when(
+                              data: (items) => Text(
+                                '${items.length}',
+                                style: AppTextStyles.heading2.copyWith(
+                                  color: primaryTextColor,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              loading: () => Text(
+                                '-',
+                                style: AppTextStyles.heading2.copyWith(
+                                  color: primaryTextColor,
+                                ),
+                              ),
+                              error: (_, __) => Text(
+                                '0',
+                                style: AppTextStyles.heading2.copyWith(
+                                  color: primaryTextColor,
+                                ),
+                              ),
+                            ),
                         const SizedBox(height: 2),
                         Text(
                           'Receiving',
-                          style: AppTextStyles.caption.copyWith(color: mutedTextColor, fontWeight: FontWeight.w500),
+                          style: AppTextStyles.caption.copyWith(
+                            color: mutedTextColor,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ],
                     ),
@@ -80,23 +104,42 @@ class DashboardScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.assignment, color: Color(0xFF0EA5E9), size: 24),
-                        const SizedBox(height: 8),
-                        ref.watch(recentInspectionsProvider).when(
-                          data: (items) => Text(
-                            '${items.length}',
-                            style: AppTextStyles.heading2.copyWith(
-                              color: primaryTextColor,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          loading: () => Text('-', style: AppTextStyles.heading2.copyWith(color: primaryTextColor)),
-                          error: (_, __) => Text('0', style: AppTextStyles.heading2.copyWith(color: primaryTextColor)),
+                        const Icon(
+                          Icons.assignment,
+                          color: Color(0xFF0EA5E9),
+                          size: 24,
                         ),
+                        const SizedBox(height: 8),
+                        ref
+                            .watch(recentInspectionsProvider)
+                            .when(
+                              data: (items) => Text(
+                                '${items.length}',
+                                style: AppTextStyles.heading2.copyWith(
+                                  color: primaryTextColor,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              loading: () => Text(
+                                '-',
+                                style: AppTextStyles.heading2.copyWith(
+                                  color: primaryTextColor,
+                                ),
+                              ),
+                              error: (_, __) => Text(
+                                '0',
+                                style: AppTextStyles.heading2.copyWith(
+                                  color: primaryTextColor,
+                                ),
+                              ),
+                            ),
                         const SizedBox(height: 2),
                         Text(
                           'Inspections',
-                          style: AppTextStyles.caption.copyWith(color: mutedTextColor, fontWeight: FontWeight.w500),
+                          style: AppTextStyles.caption.copyWith(
+                            color: mutedTextColor,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ],
                     ),
@@ -108,23 +151,42 @@ class DashboardScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.science, color: AppColors.warning, size: 24),
-                        const SizedBox(height: 8),
-                        ref.watch(recentLabTestsProvider).when(
-                          data: (items) => Text(
-                            '${items.length}',
-                            style: AppTextStyles.heading2.copyWith(
-                              color: primaryTextColor,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          loading: () => Text('-', style: AppTextStyles.heading2.copyWith(color: primaryTextColor)),
-                          error: (_, __) => Text('0', style: AppTextStyles.heading2.copyWith(color: primaryTextColor)),
+                        const Icon(
+                          Icons.science,
+                          color: AppColors.warning,
+                          size: 24,
                         ),
+                        const SizedBox(height: 8),
+                        ref
+                            .watch(recentLabTestsProvider)
+                            .when(
+                              data: (items) => Text(
+                                '${items.length}',
+                                style: AppTextStyles.heading2.copyWith(
+                                  color: primaryTextColor,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              loading: () => Text(
+                                '-',
+                                style: AppTextStyles.heading2.copyWith(
+                                  color: primaryTextColor,
+                                ),
+                              ),
+                              error: (_, __) => Text(
+                                '0',
+                                style: AppTextStyles.heading2.copyWith(
+                                  color: primaryTextColor,
+                                ),
+                              ),
+                            ),
                         const SizedBox(height: 2),
                         Text(
                           'Lab Tests',
-                          style: AppTextStyles.caption.copyWith(color: mutedTextColor, fontWeight: FontWeight.w500),
+                          style: AppTextStyles.caption.copyWith(
+                            color: mutedTextColor,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ],
                     ),
@@ -137,7 +199,10 @@ class DashboardScreen extends ConsumerWidget {
             // Quick Actions
             Text(
               'Quick Actions',
-              style: AppTextStyles.heading3.copyWith(color: primaryTextColor, fontWeight: FontWeight.bold),
+              style: AppTextStyles.heading3.copyWith(
+                color: primaryTextColor,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 12),
             _buildActionTile(
@@ -148,7 +213,9 @@ class DashboardScreen extends ConsumerWidget {
               color: const Color(0xFF0EA5E9),
               primaryTextColor: primaryTextColor,
               mutedTextColor: mutedTextColor,
-              onTap: () => context.go('/app/inspections/processes'),
+              onTap: AppConfig.operationalWritesEnabled
+                  ? () => context.go('/app/inspections/processes')
+                  : null,
             ),
             const SizedBox(height: 12),
             _buildActionTile(
@@ -169,7 +236,9 @@ class DashboardScreen extends ConsumerWidget {
               color: AppColors.accent,
               primaryTextColor: primaryTextColor,
               mutedTextColor: mutedTextColor,
-              onTap: () => context.go('/app/receiving/new'),
+              onTap: AppConfig.operationalWritesEnabled
+                  ? () => context.go('/app/receiving/new')
+                  : null,
             ),
             const SizedBox(height: 12),
             _buildActionTile(
@@ -191,7 +260,9 @@ class DashboardScreen extends ConsumerWidget {
               color: AppColors.warning,
               primaryTextColor: primaryTextColor,
               mutedTextColor: mutedTextColor,
-              onTap: () => context.go('/app/lab/new'),
+              onTap: AppConfig.operationalWritesEnabled
+                  ? () => context.go('/app/lab/new')
+                  : null,
             ),
           ],
         ),
@@ -204,48 +275,56 @@ class DashboardScreen extends ConsumerWidget {
     required IconData icon,
     required String title,
     required String subtitle,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
     required Color primaryTextColor,
     required Color mutedTextColor,
     Color color = AppColors.accent,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: AppCard(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
+    return Opacity(
+      opacity: onTap == null ? 0.55 : 1,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: AppCard(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color, size: 24),
               ),
-              child: Icon(icon, color: color, size: 24),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: AppTextStyles.body1.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: primaryTextColor,
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: AppTextStyles.body1.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: primaryTextColor,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: AppTextStyles.caption.copyWith(color: mutedTextColor),
-                  ),
-                ],
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: AppTextStyles.caption.copyWith(
+                        color: mutedTextColor,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Icon(Icons.chevron_right, color: mutedTextColor),
-          ],
+              Icon(
+                onTap == null ? Icons.lock_outline : Icons.chevron_right,
+                color: mutedTextColor,
+              ),
+            ],
+          ),
         ),
       ),
     );

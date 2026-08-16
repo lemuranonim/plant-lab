@@ -8,6 +8,14 @@ import '../../plant_lab_app.dart';
 Future<void> bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  if (AppConfig.supabaseUrl.isEmpty ||
+      AppConfig.supabasePublishableKey.isEmpty) {
+    throw StateError(
+      'Supabase client configuration is missing. Provide SUPABASE_URL and '
+      'SUPABASE_PUBLISHABLE_KEY using --dart-define.',
+    );
+  }
+
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -17,7 +25,7 @@ Future<void> bootstrap() async {
 
   await Supabase.initialize(
     url: AppConfig.supabaseUrl,
-    publishableKey: AppConfig.supabaseAnonKey,
+    publishableKey: AppConfig.supabasePublishableKey,
   );
 
   runApp(const ProviderScope(child: PlantLabApp()));

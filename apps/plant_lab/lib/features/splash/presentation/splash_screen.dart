@@ -19,6 +19,7 @@ class _PlantLabSplashScreenState extends State<PlantLabSplashScreen> {
   static const _minimumSplashDuration = Duration(milliseconds: 2600);
 
   final DateTime _startedAt = DateTime.now();
+  Timer? _pendingDelay;
   String _version = 'Loading...';
   double _progress = 0.2;
 
@@ -41,13 +42,13 @@ class _PlantLabSplashScreenState extends State<PlantLabSplashScreen> {
   }
 
   Future<void> _continue() async {
-    await Future.delayed(const Duration(milliseconds: 400));
+    await _delay(const Duration(milliseconds: 400));
     _setLoadingProgress(0.65);
 
     final supabaseUser = Supabase.instance.client.auth.currentUser;
 
     _setLoadingProgress(1.0);
-    await Future.delayed(const Duration(milliseconds: 300));
+    await _delay(const Duration(milliseconds: 300));
     if (!mounted) return;
 
     await _waitForMinimumSplash();
@@ -64,8 +65,20 @@ class _PlantLabSplashScreenState extends State<PlantLabSplashScreen> {
     final elapsed = DateTime.now().difference(_startedAt);
     final remaining = _minimumSplashDuration - elapsed;
     if (remaining > Duration.zero) {
-      await Future.delayed(remaining);
+      await _delay(remaining);
     }
+  }
+
+  Future<void> _delay(Duration duration) {
+    final completer = Completer<void>();
+    _pendingDelay = Timer(duration, completer.complete);
+    return completer.future;
+  }
+
+  @override
+  void dispose() {
+    _pendingDelay?.cancel();
+    super.dispose();
   }
 
   void _setLoadingProgress(double progress) {
@@ -262,10 +275,7 @@ class _PremiumOrbitRingPainter extends CustomPainter {
   final double orbit;
   final double progress;
 
-  const _PremiumOrbitRingPainter({
-    required this.orbit,
-    required this.progress,
-  });
+  const _PremiumOrbitRingPainter({required this.orbit, required this.progress});
 
   @override
   void paint(Canvas canvas, Size size) {

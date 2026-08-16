@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/theme/app_colors.dart';
+import '../../../core/config/app_config.dart';
 import '../data/lab_repository.dart';
 
 class LabTestFormScreen extends ConsumerStatefulWidget {
@@ -33,26 +34,34 @@ class _LabTestFormScreenState extends ConsumerState<LabTestFormScreen> {
 
     setState(() => _isLoading = true);
     try {
-      await ref.read(labRepositoryProvider).submitLabTest(
+      await ref
+          .read(labRepositoryProvider)
+          .submitLabTest(
             lotIdRaw: _lotIdController.text,
             hybridCode: _hybridController.text,
             germNormalPct: double.parse(_germPctController.text),
             soakNormalPct: double.parse(_soakPctController.text),
           );
-      
+
       // ignore: unused_result
       ref.refresh(recentLabTestsProvider);
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Lab evaluation submitted successfully!'), backgroundColor: AppColors.success),
+          const SnackBar(
+            content: Text('Lab evaluation submitted successfully!'),
+            backgroundColor: AppColors.success,
+          ),
         );
         context.pop();
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.danger),
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: AppColors.danger,
+          ),
         );
       }
     } finally {
@@ -63,9 +72,7 @@ class _LabTestFormScreenState extends ConsumerState<LabTestFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('New Lab Evaluation'),
-      ),
+      appBar: AppBar(title: const Text('New Lab Evaluation')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -80,7 +87,8 @@ class _LabTestFormScreenState extends ConsumerState<LabTestFormScreen> {
                   hintText: 'e.g. L-26-001',
                   prefixIcon: Icon(Icons.qr_code),
                 ),
-                validator: (v) => v == null || v.isEmpty ? 'Required field' : null,
+                validator: (v) =>
+                    v == null || v.isEmpty ? 'Required field' : null,
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -90,41 +98,56 @@ class _LabTestFormScreenState extends ConsumerState<LabTestFormScreen> {
                   hintText: 'e.g. AX09',
                   prefixIcon: Icon(Icons.eco),
                 ),
-                validator: (v) => v == null || v.isEmpty ? 'Required field' : null,
+                validator: (v) =>
+                    v == null || v.isEmpty ? 'Required field' : null,
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _germPctController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 decoration: const InputDecoration(
                   labelText: 'Germination Normal (%)',
                   hintText: 'e.g. 95',
                   prefixIcon: Icon(Icons.percent),
                 ),
                 validator: (v) {
-                  if (v == null || v.isEmpty) return 'Required field';
-                  if (double.tryParse(v) == null) return 'Must be a valid number';
+                  if (v == null || v.isEmpty) {
+                    return 'Required field';
+                  }
+                  if (double.tryParse(v) == null) {
+                    return 'Must be a valid number';
+                  }
                   return null;
                 },
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _soakPctController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 decoration: const InputDecoration(
                   labelText: 'Vigor Soak Normal (%)',
                   hintText: 'e.g. 92',
                   prefixIcon: Icon(Icons.percent),
                 ),
                 validator: (v) {
-                  if (v == null || v.isEmpty) return 'Required field';
-                  if (double.tryParse(v) == null) return 'Must be a valid number';
+                  if (v == null || v.isEmpty) {
+                    return 'Required field';
+                  }
+                  if (double.tryParse(v) == null) {
+                    return 'Must be a valid number';
+                  }
                   return null;
                 },
               ),
               const SizedBox(height: 32),
               ElevatedButton(
-                onPressed: _isLoading ? null : _submit,
+                onPressed: AppConfig.operationalWritesEnabled && !_isLoading
+                    ? _submit
+                    : null,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   backgroundColor: AppColors.accent,
@@ -134,9 +157,20 @@ class _LabTestFormScreenState extends ConsumerState<LabTestFormScreen> {
                     ? const SizedBox(
                         height: 20,
                         width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
                       )
-                    : const Text('Submit Evaluation', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    : const Text(
+                        AppConfig.operationalWritesEnabled
+                            ? 'Submit Evaluation'
+                            : 'Read-only mode',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             ],
           ),

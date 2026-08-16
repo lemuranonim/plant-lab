@@ -4,13 +4,15 @@ import 'package:go_router/go_router.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_text_styles.dart';
 import '../../../core/widgets/app_card.dart';
+import '../../../core/config/app_config.dart';
 import '../data/lab_request_repository.dart';
 
 class LabRequestFormScreen extends ConsumerStatefulWidget {
   const LabRequestFormScreen({super.key});
 
   @override
-  ConsumerState<LabRequestFormScreen> createState() => _LabRequestFormScreenState();
+  ConsumerState<LabRequestFormScreen> createState() =>
+      _LabRequestFormScreenState();
 }
 
 class _LabRequestFormScreenState extends ConsumerState<LabRequestFormScreen> {
@@ -58,7 +60,9 @@ class _LabRequestFormScreenState extends ConsumerState<LabRequestFormScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Request sampel lab berhasil dibuat! Status: PREPARED.'),
+          content: Text(
+            'Request sampel lab berhasil dibuat! Status: PREPARED.',
+          ),
           backgroundColor: AppColors.success,
         ),
       );
@@ -80,13 +84,15 @@ class _LabRequestFormScreenState extends ConsumerState<LabRequestFormScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryTextColor = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
-    final mutedTextColor = isDark ? AppColors.textMutedDark : AppColors.textMutedLight;
+    final primaryTextColor = isDark
+        ? AppColors.textPrimaryDark
+        : AppColors.textPrimaryLight;
+    final mutedTextColor = isDark
+        ? AppColors.textMutedDark
+        : AppColors.textMutedLight;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Buat Request Sampel Lab'),
-      ),
+      appBar: AppBar(title: const Text('Buat Request Sampel Lab')),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -106,7 +112,9 @@ class _LabRequestFormScreenState extends ConsumerState<LabRequestFormScreen> {
                   const SizedBox(height: 4),
                   Text(
                     'Isi data pengambilan sampel dari Plant/Kebun ke Laboratorium:',
-                    style: AppTextStyles.caption.copyWith(color: mutedTextColor),
+                    style: AppTextStyles.caption.copyWith(
+                      color: mutedTextColor,
+                    ),
                   ),
                 ],
               ),
@@ -136,10 +144,7 @@ class _LabRequestFormScreenState extends ConsumerState<LabRequestFormScreen> {
                 prefixIcon: Icon(Icons.science),
               ),
               items: testTypes.map((type) {
-                return DropdownMenuItem(
-                  value: type,
-                  child: Text(type),
-                );
+                return DropdownMenuItem(value: type, child: Text(type));
               }).toList(),
               onChanged: (val) {
                 if (val != null) {
@@ -177,14 +182,23 @@ class _LabRequestFormScreenState extends ConsumerState<LabRequestFormScreen> {
             const SizedBox(height: 28),
 
             ElevatedButton(
-              onPressed: _isSubmitting ? null : _submit,
+              onPressed: AppConfig.operationalWritesEnabled && !_isSubmitting
+                  ? _submit
+                  : null,
               child: _isSubmitting
                   ? const SizedBox(
                       height: 20,
                       width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
-                  : const Text('Kirim Request Sampel Lab'),
+                  : const Text(
+                      AppConfig.operationalWritesEnabled
+                          ? 'Kirim Request Sampel Lab'
+                          : 'Mode read-only aktif',
+                    ),
             ),
           ],
         ),

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:plant_lab/core/config/app_config.dart';
 
 part 'receiving_repository.g.dart';
 
@@ -22,6 +23,7 @@ class ReceivingRepository {
     required String hybridCode,
     required double shellingQtyKg,
   }) async {
+    AppConfig.requireOperationalWritesEnabled();
     final now = DateTime.now().toIso8601String();
     await _supabase.from('pl_receiving_harvest').insert({
       'lot_id_raw': lotIdRaw,
