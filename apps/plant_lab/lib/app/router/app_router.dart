@@ -3,9 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import '../../core/access/access_context_provider.dart';
+import '../../core/access/route_access_policy.dart';
 import '../../core/auth/auth_notifier.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/widgets/qr_barcode_scanner_screen.dart';
+import '../../features/access/presentation/access_denied_screen.dart';
+import '../../features/access/presentation/access_loading_screen.dart';
 import '../../features/splash/presentation/splash_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/dashboard/presentation/dashboard_screen.dart';
@@ -28,39 +32,40 @@ final _rootNavigatorKey = GlobalKey<NavigatorState>();
 @riverpod
 GoRouter appRouter(Ref ref) {
   final authState = ref.watch(authNotifierProvider);
+  final accessState = ref.watch(accessContextProvider);
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/splash',
     redirect: (context, state) {
-      final matched = state.matchedLocation;
-      if (matched == '/splash') return null;
+      final isAuthenticated =
+          authState.valueOrNull?.maybeWhen(
+            authenticated: (_) => true,
+            orElse: () => false,
+          ) ??
+          false;
 
-      final isAuthenticated = authState.valueOrNull?.maybeWhen(
-        authenticated: (_) => true,
-        orElse: () => false,
-      ) ?? false;
-
-      final isLoginRoute = matched == '/login';
-
-      if (!isAuthenticated && !isLoginRoute) {
-        return '/login';
-      }
-
-      if (isAuthenticated && isLoginRoute) {
-        return '/app/dashboard';
-      }
-
-      return null;
+      return redirectForAccess(
+        location: state.matchedLocation,
+        isAuthenticated: isAuthenticated,
+        isAccessLoading: accessState.isLoading,
+        hasAccessError: accessState.hasError,
+        access: accessState.valueOrNull,
+      );
     },
     routes: [
       GoRoute(
         path: '/splash',
         builder: (context, state) => const PlantLabSplashScreen(),
       ),
+      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(
-        path: '/login',
-        builder: (context, state) => const LoginScreen(),
+        path: '/access-loading',
+        builder: (context, state) => const AccessLoadingScreen(),
+      ),
+      GoRoute(
+        path: '/access-denied',
+        builder: (context, state) => const AccessDeniedScreen(),
       ),
       GoRoute(
         path: '/app/scanner',
@@ -101,12 +106,14 @@ GoRouter appRouter(Ref ref) {
                 routes: [
                   GoRoute(
                     path: 'processes',
-                    builder: (context, state) => const InspectionProcessSelectionScreen(),
+                    builder: (context, state) =>
+                        const InspectionProcessSelectionScreen(),
                   ),
                   GoRoute(
                     path: 'new/:processType',
                     builder: (context, state) {
-                      final pType = state.pathParameters['processType'] ?? 'INTAKE';
+                      final pType =
+                          state.pathParameters['processType'] ?? 'INTAKE';
                       return DynamicInspectionFormScreen(processType: pType);
                     },
                   ),
@@ -130,7 +137,8 @@ GoRouter appRouter(Ref ref) {
                     routes: [
                       GoRoute(
                         path: 'new',
-                        builder: (context, state) => const LabRequestFormScreen(),
+                        builder: (context, state) =>
+                            const LabRequestFormScreen(),
                       ),
                     ],
                   ),
