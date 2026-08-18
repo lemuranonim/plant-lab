@@ -5,6 +5,7 @@ import styles from './dashboard-layout.module.css';
 import LogoutButton from './LogoutButton';
 import ThemeToggle from '@/components/ThemeToggle';
 import { operationalWritesEnabled } from '@/lib/operationalMode';
+import { getCurrentAccessContext } from '@/lib/accessContext';
 
 export default async function DashboardLayout({
   children,
@@ -20,8 +21,14 @@ export default async function DashboardLayout({
     redirect('/login');
   }
 
-  const isSuperAdmin = user.email === 'admin@advantaindonesia.com';
-  const roleName = isSuperAdmin ? 'Superadmin' : 'Staff Admin';
+  const access = await getCurrentAccessContext();
+
+  if (!access || (!access.can_access_plant && !access.can_access_lab)) {
+    redirect('/access-denied');
+  }
+
+  const isSuperAdmin = access.can_manage_users;
+  const roleName = access.primary_role_name;
   const displayEmail = user.email;
 
   return (
@@ -53,7 +60,7 @@ export default async function DashboardLayout({
             Dashboard
           </Link>
 
-          <Link href="/receiving" className={styles.navItem}>
+          {access.can_access_plant && <Link href="/receiving" className={styles.navItem}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={styles.icon}>
               <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"></path>
               <path d="M15 18H9"></path>
@@ -62,33 +69,33 @@ export default async function DashboardLayout({
               <circle cx="17" cy="18" r="2"></circle>
             </svg>
             Receiving Harvest
-          </Link>
+          </Link>}
 
-          <Link href="/inspections" className={styles.navItem}>
+          {access.can_access_plant && <Link href="/inspections" className={styles.navItem}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={styles.icon}>
               <path d="M9 11l3 3L22 4"></path>
               <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
             </svg>
             Plant Process Inspections
-          </Link>
+          </Link>}
 
-          <Link href="/lab-requests" className={styles.navItem}>
+          {access.can_access_lab && <Link href="/lab-requests" className={styles.navItem}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={styles.icon}>
               <path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2"></path>
               <path d="M8.5 2h7"></path>
               <path d="M7 16h10"></path>
             </svg>
             Lab Sample Tracking
-          </Link>
+          </Link>}
 
-          <Link href="/lab-quality" className={styles.navItem}>
+          {access.can_access_lab && <Link href="/lab-quality" className={styles.navItem}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={styles.icon}>
               <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
               <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
               <line x1="12" y1="22.08" x2="12" y2="12"></line>
             </svg>
             Lab Quality Data
-          </Link>
+          </Link>}
 
           <Link href="/reports" className={styles.navItem}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={styles.icon}>
@@ -99,9 +106,9 @@ export default async function DashboardLayout({
             Reports & Analytics
           </Link>
 
-          <div className={styles.navSection}>Administration</div>
+          {access.can_manage_users && <div className={styles.navSection}>Administration</div>}
 
-          <Link href="/users" className={styles.navItem}>
+          {access.can_manage_users && <Link href="/users" className={styles.navItem}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={styles.icon}>
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
               <circle cx="9" cy="7" r="4"></circle>
@@ -109,18 +116,24 @@ export default async function DashboardLayout({
               <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
             </svg>
             Users & Roles
-          </Link>
+          </Link>}
         </nav>
       </aside>
 
       <div className={styles.mainWrapper}>
         <header className={styles.header}>
           <div className={styles.headerLeft}>
-            <select className={styles.siteSelect} defaultValue="PLANT-PASURUAN">
-              <option value="PLANT-PASURUAN">Plant Pasuruan (Jawa Timur)</option>
-              <option value="LAB-PASURUAN">Lab / SPL Pasuruan</option>
-              <option value="WH-PASURUAN">Gudang Pasuruan</option>
-            </select>
+            {access.sites.length > 0 ? (
+              <select className={styles.siteSelect} defaultValue={access.sites[0].site_code}>
+                {access.sites.map((site) => (
+                  <option key={site.id} value={site.site_code}>
+                    {site.site_name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className={styles.siteSelect}>No site scope</span>
+            )}
           </div>
 
           <div className={styles.userMenu}>

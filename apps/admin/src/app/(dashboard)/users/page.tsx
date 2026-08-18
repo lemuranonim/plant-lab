@@ -1,6 +1,9 @@
 import { operationalWritesEnabled } from '@/lib/operationalMode';
+import { requireAccess } from '@/lib/accessContext';
 
-export default function UsersPage() {
+export default async function UsersPage() {
+  await requireAccess('can_manage_users');
+
   return (
     <div style={{ animation: 'fadeIn 0.5s ease-out' }}>
       <h1 style={{ fontSize: '1.875rem', fontWeight: 600, marginBottom: '0.5rem' }}>User & Role Assignments</h1>
