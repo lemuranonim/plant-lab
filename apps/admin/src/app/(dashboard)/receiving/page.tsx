@@ -1,9 +1,22 @@
 import { createClient } from '@/lib/supabase/server';
 import styles from '../lab-quality/lab-quality.module.css';
+import { requireAccess } from '@/lib/accessContext';
 
 export const revalidate = 0;
 
+type ReceivingHarvestRow = {
+  id: string | number;
+  lot_id_raw: string | null;
+  hybrid_code: string | null;
+  shelling_qty_kg: number | null;
+  incoming_date: string | null;
+  field_status: string | null;
+  remarks: string | null;
+  notes: string | null;
+};
+
 export default async function ReceivingPage() {
+  await requireAccess('can_access_plant');
   const supabase = await createClient();
   const { data: harvests, error } = await supabase
     .from('pl_receiving_harvest')
@@ -44,7 +57,7 @@ export default async function ReceivingPage() {
               </thead>
               <tbody>
                 {harvests && harvests.length > 0 ? (
-                  harvests.map((item: any) => (
+                  harvests.map((item: ReceivingHarvestRow) => (
                     <tr key={item.id}>
                       <td style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>
                         {item.lot_id_raw || 'Unknown Lot'}

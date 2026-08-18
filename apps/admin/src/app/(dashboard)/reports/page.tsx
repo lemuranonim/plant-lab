@@ -1,7 +1,9 @@
 import { createClient } from '@/lib/supabase/server';
 import styles from './reports.module.css';
+import { requireAccess } from '@/lib/accessContext';
 
 export default async function ReportsPage() {
+  await requireAccess('can_access_lab');
   const supabase = await createClient();
 
   // Fetch summary by hybrid for report presentation from pl_germ_results

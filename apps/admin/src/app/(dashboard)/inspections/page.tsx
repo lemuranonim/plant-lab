@@ -1,9 +1,21 @@
 import { createClient } from '@/lib/supabase/server';
 import styles from '../lab-quality/lab-quality.module.css';
+import { requireAccess } from '@/lib/accessContext';
 
 export const revalidate = 0;
 
+type InspectionRow = {
+  id: string;
+  inspection_no: string | null;
+  process_type: string | null;
+  is_oos: boolean | null;
+  notes: string | null;
+  created_at: string | null;
+  submitted_at: string | null;
+};
+
 export default async function InspectionsPage() {
+  await requireAccess('can_access_plant');
   const supabase = await createClient();
   const { data: inspections, error } = await supabase
     .from('pl_inspections')
@@ -52,7 +64,7 @@ export default async function InspectionsPage() {
               </thead>
               <tbody>
                 {inspections && inspections.length > 0 ? (
-                  inspections.map((item: any) => {
+                  inspections.map((item: InspectionRow) => {
                     const isOos = item.is_oos === true;
                     const dateStr = item.created_at || item.submitted_at;
                     const dateFormatted = dateStr ? new Date(dateStr).toLocaleString('id-ID') : '-';

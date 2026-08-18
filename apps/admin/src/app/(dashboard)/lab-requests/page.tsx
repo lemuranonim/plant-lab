@@ -1,9 +1,24 @@
 import { createClient } from '@/lib/supabase/server';
 import styles from '../lab-quality/lab-quality.module.css';
+import { requireAccess } from '@/lib/accessContext';
 
 export const revalidate = 0;
 
+type LabRequestRow = {
+  id: string;
+  request_no: string;
+  lot_id_raw: string;
+  test_type: string;
+  sample_qty_grams: number | null;
+  status: string;
+  sampler_name: string | null;
+  sampler_email: string | null;
+  requested_at: string | null;
+  notes: string | null;
+};
+
 export default async function LabRequestsPage() {
+  await requireAccess('can_access_lab');
   const supabase = await createClient();
   const { data: requests, error } = await supabase
     .from('pl_lab_requests')
@@ -55,7 +70,7 @@ export default async function LabRequestsPage() {
               </thead>
               <tbody>
                 {requests && requests.length > 0 ? (
-                  requests.map((item: any) => (
+                  requests.map((item: LabRequestRow) => (
                     <tr key={item.id}>
                       <td style={{ fontWeight: 'bold', fontFamily: 'monospace', color: 'var(--accent-light)' }}>
                         {item.request_no}
