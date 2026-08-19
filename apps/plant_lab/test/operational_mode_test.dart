@@ -9,4 +9,21 @@ void main() {
       throwsA(isA<StateError>()),
     );
   });
+
+  test('Supabase configuration validation reports a missing key', () {
+    expect(
+      AppConfig.validateSupabaseConfiguration(
+        url: 'https://example.supabase.co',
+        publishableKey: '',
+      ),
+      contains('SUPABASE_PUBLISHABLE_KEY'),
+    );
+    expect(
+      AppConfig.validateSupabaseConfiguration(
+        url: 'https://example.supabase.co',
+        publishableKey: 'sb_publishable_example',
+      ),
+      isNull,
+    );
+  });
 }

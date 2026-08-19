@@ -23,4 +23,26 @@ class AppConfig {
     'SUPABASE_PUBLISHABLE_KEY',
     defaultValue: String.fromEnvironment('SUPABASE_ANON_KEY'),
   );
+
+  static String? get configurationError => validateSupabaseConfiguration(
+    url: supabaseUrl,
+    publishableKey: supabasePublishableKey,
+  );
+
+  static String? validateSupabaseConfiguration({
+    required String url,
+    required String publishableKey,
+  }) {
+    final parsedUrl = Uri.tryParse(url);
+    if (parsedUrl == null ||
+        parsedUrl.scheme != 'https' ||
+        parsedUrl.host.isEmpty) {
+      return 'SUPABASE_URL harus berupa URL HTTPS Supabase yang valid.';
+    }
+    if (publishableKey.trim().isEmpty) {
+      return 'SUPABASE_PUBLISHABLE_KEY belum diberikan saat aplikasi '
+          'dijalankan atau dibangun.';
+    }
+    return null;
+  }
 }

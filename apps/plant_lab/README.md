@@ -17,6 +17,20 @@ flutter run `
   --dart-define=SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxx
 ```
 
+For this workspace, the safe local launcher reads the existing ignored
+`apps/admin/.env.local` without printing or copying its key into Git:
+
+```powershell
+cd D:\plant-lab\apps\plant_lab
+.\tool\flutter_with_local_config.ps1 run -DeviceId emulator-5554
+.\tool\flutter_with_local_config.ps1 build-apk-release
+```
+
+Running `flutter run` or `flutter build apk` without either this launcher or the
+required `--dart-define` values produces a configuration screen and does not
+initialize Supabase. Operational writes remain explicitly disabled by the local
+launcher.
+
 After a separately approved production release, writes can be enabled with:
 
 ```text
