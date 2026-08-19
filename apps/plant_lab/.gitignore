@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local runtime configuration bundled into mobile builds. This file may contain
+# a public client key, but remains local so environment changes do not enter Git.
+.env

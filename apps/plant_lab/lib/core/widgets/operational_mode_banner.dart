@@ -23,7 +23,7 @@ class OperationalModeBanner extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Mode read-only aktif — data dapat dilihat, tetapi perubahan '
-                  'belum diizinkan selama hardening P0.',
+                  'belum diizinkan selama tahap UAT.',
                   style: TextStyle(
                     color: Color(0xFF7A4D00),
                     fontSize: 12,
