@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_text_styles.dart';
 import '../../../core/access/access_context_provider.dart';
+import '../../../core/auth/auth_notifier.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../lab_test/data/lab_repository.dart';
@@ -34,8 +35,9 @@ class DashboardScreen extends ConsumerWidget {
         title: const Text('Plant+Lab'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications_none),
-            onPressed: () {},
+            tooltip: 'Keluar',
+            icon: const Icon(Icons.logout),
+            onPressed: () => _confirmSignOut(context, ref),
           ),
         ],
       ),
@@ -200,6 +202,33 @@ class DashboardScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _confirmSignOut(BuildContext context, WidgetRef ref) async {
+    final shouldSignOut = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Keluar dari aplikasi?'),
+        content: const Text(
+          'Sesi Plant+Lab pada perangkat ini akan diakhiri. Anda perlu login '
+          'kembali untuk melanjutkan.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Batal'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            icon: const Icon(Icons.logout),
+            label: const Text('Keluar'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldSignOut != true || !context.mounted) return;
+    await ref.read(authNotifierProvider.notifier).signOut();
   }
 }
 
