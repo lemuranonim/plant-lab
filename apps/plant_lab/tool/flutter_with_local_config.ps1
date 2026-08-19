@@ -8,35 +8,19 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $mobileRoot = Split-Path -Parent $PSScriptRoot
-$adminEnvPath = Join-Path $mobileRoot '..\admin\.env.local'
 $flutterPath = 'D:\flutter\bin\flutter.bat'
+$syncScriptPath = Join-Path $PSScriptRoot 'sync_mobile_env.ps1'
 
-if (-not (Test-Path -LiteralPath $adminEnvPath)) {
-  throw "Local environment file was not found: $adminEnvPath"
-}
 if (-not (Test-Path -LiteralPath $flutterPath)) {
   throw "Flutter executable was not found: $flutterPath"
 }
-
-$localConfig = @{}
-foreach ($line in Get-Content -LiteralPath $adminEnvPath) {
-  if ($line -match '^\s*([^#][^=]+)=(.*)$') {
-    $name = $matches[1].Trim()
-    $value = $matches[2].Trim().Trim('"').Trim("'")
-    $localConfig[$name] = $value
-  }
+if (-not (Test-Path -LiteralPath $syncScriptPath)) {
+  throw "Mobile environment sync script was not found: $syncScriptPath"
 }
 
-$supabaseUrl = $localConfig['NEXT_PUBLIC_SUPABASE_URL']
-$publishableKey = $localConfig['NEXT_PUBLIC_SUPABASE_ANON_KEY']
-if ([string]::IsNullOrWhiteSpace($supabaseUrl) -or
-    [string]::IsNullOrWhiteSpace($publishableKey)) {
-  throw 'NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY is missing from apps/admin/.env.local.'
-}
+& $syncScriptPath
 
 $configurationArgs = @(
-  "--dart-define=SUPABASE_URL=$supabaseUrl"
-  "--dart-define=SUPABASE_PUBLISHABLE_KEY=$publishableKey"
   '--dart-define=OPERATIONAL_WRITES_ENABLED=false'
 )
 

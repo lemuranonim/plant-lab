@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/config/app_config.dart';
@@ -14,6 +15,13 @@ Future<void> bootstrap() async {
       statusBarIconBrightness: Brightness.light,
     ),
   );
+
+  try {
+    await dotenv.load(fileName: '.env');
+  } catch (_) {
+    // Compile-time dart-defines remain supported for CI or environments that
+    // intentionally do not package a local .env file.
+  }
 
   final configurationError = AppConfig.configurationError;
   if (configurationError != null) {

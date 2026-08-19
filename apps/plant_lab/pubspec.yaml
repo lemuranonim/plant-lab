@@ -12,6 +12,7 @@ dependencies:
 
   # Supabase
   supabase_flutter: ^2.9.1
+  flutter_dotenv: ^6.0.1
 
   # State Management
   flutter_riverpod: ^2.6.1
@@ -91,6 +92,7 @@ flutter:
   assets:
     - assets/logo_plant_lab.png
     - assets/icon.png
+    - .env
 
 flutter_launcher_icons:
   android: true
@@ -98,4 +100,3 @@ flutter_launcher_icons:
   image_path: "assets/logo_plant_lab.png"
   adaptive_icon_background: "#002855"
   adaptive_icon_foreground: "assets/logo_plant_lab.png"
-
