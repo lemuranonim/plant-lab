@@ -7,6 +7,7 @@ import '../../core/access/access_context_provider.dart';
 import '../../core/access/route_access_policy.dart';
 import '../../core/auth/auth_notifier.dart';
 import '../../core/auth/auth_state.dart';
+import '../../core/config/app_variant.dart';
 import '../../core/widgets/qr_barcode_scanner_screen.dart';
 import '../../features/access/presentation/access_denied_screen.dart';
 import '../../features/access/presentation/access_loading_screen.dart';
@@ -33,6 +34,7 @@ final _rootNavigatorKey = GlobalKey<NavigatorState>();
 GoRouter appRouter(Ref ref) {
   final authState = ref.watch(authNotifierProvider);
   final accessState = ref.watch(accessContextProvider);
+  final variant = ref.watch(appVariantProvider);
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
@@ -51,6 +53,7 @@ GoRouter appRouter(Ref ref) {
         isAccessLoading: accessState.isLoading,
         hasAccessError: accessState.hasError,
         access: accessState.valueOrNull,
+        variant: variant,
       );
     },
     routes: [

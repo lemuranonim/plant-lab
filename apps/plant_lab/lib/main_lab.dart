@@ -1,6 +1,4 @@
 import 'package:plant_lab/app/bootstrap/app_bootstrap.dart';
 import 'package:plant_lab/core/config/app_variant.dart';
 
-// Backward-compatible local entrypoint. Distribution builds must use
-// main_plant.dart or main_lab.dart with the matching Android flavor.
 Future<void> main() => bootstrap(AppVariant.lab);

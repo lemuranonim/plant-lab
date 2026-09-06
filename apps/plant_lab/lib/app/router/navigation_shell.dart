@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:plant_lab/core/access/access_context.dart';
 import 'package:plant_lab/core/access/access_context_provider.dart';
+import 'package:plant_lab/core/config/app_variant.dart';
 import 'package:plant_lab/core/widgets/operational_mode_banner.dart';
 
 class NavigationShell extends ConsumerWidget {
@@ -13,6 +14,7 @@ class NavigationShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final access = ref.watch(accessContextProvider).valueOrNull;
+    final variant = ref.watch(appVariantProvider);
     if (access == null) {
       return const Scaffold(
         body: Column(
@@ -24,7 +26,7 @@ class NavigationShell extends ConsumerWidget {
       );
     }
 
-    final destinations = _destinationsFor(access);
+    final destinations = _destinationsFor(access, variant);
     final visibleIndex = destinations.indexWhere(
       (destination) => destination.branchIndex == navigationShell.currentIndex,
     );
@@ -60,7 +62,10 @@ class NavigationShell extends ConsumerWidget {
   }
 }
 
-List<_ScopedNavigationDestination> _destinationsFor(AccessContext access) {
+List<_ScopedNavigationDestination> _destinationsFor(
+  AccessContext access,
+  AppVariant variant,
+) {
   return [
     const _ScopedNavigationDestination(
       branchIndex: 0,
@@ -68,7 +73,7 @@ List<_ScopedNavigationDestination> _destinationsFor(AccessContext access) {
       activeIcon: Icons.dashboard,
       label: 'Dashboard',
     ),
-    if (access.canAccessPlant) ...[
+    if (variant.isPlant && access.canAccessPlant) ...[
       const _ScopedNavigationDestination(
         branchIndex: 1,
         icon: Icons.agriculture_outlined,
@@ -82,7 +87,7 @@ List<_ScopedNavigationDestination> _destinationsFor(AccessContext access) {
         label: 'Inspections',
       ),
     ],
-    if (access.canAccessLab)
+    if (variant.isLab && access.canAccessLab)
       const _ScopedNavigationDestination(
         branchIndex: 3,
         icon: Icons.science_outlined,

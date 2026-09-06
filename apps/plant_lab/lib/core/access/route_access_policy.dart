@@ -1,4 +1,5 @@
 import 'access_context.dart';
+import '../config/app_variant.dart';
 
 enum RouteAccessRequirement { public, authenticated, plant, lab }
 
@@ -19,12 +20,16 @@ RouteAccessRequirement accessRequirementForLocation(String location) {
   return RouteAccessRequirement.authenticated;
 }
 
-bool canAccessLocation(AccessContext context, String location) {
+bool canAccessLocation(
+  AccessContext context,
+  String location, {
+  required AppVariant variant,
+}) {
   return switch (accessRequirementForLocation(location)) {
     RouteAccessRequirement.public => true,
-    RouteAccessRequirement.authenticated => context.hasApplicationAccess,
-    RouteAccessRequirement.plant => context.canAccessPlant,
-    RouteAccessRequirement.lab => context.canAccessLab,
+    RouteAccessRequirement.authenticated => variant.allows(context),
+    RouteAccessRequirement.plant => variant.isPlant && context.canAccessPlant,
+    RouteAccessRequirement.lab => variant.isLab && context.canAccessLab,
   };
 }
 
@@ -34,6 +39,7 @@ String? redirectForAccess({
   required bool isAccessLoading,
   required bool hasAccessError,
   required AccessContext? access,
+  required AppVariant variant,
 }) {
   final isLoginRoute = location == '/login';
 
@@ -46,7 +52,10 @@ String? redirectForAccess({
     return location == '/access-loading' ? null : '/access-loading';
   }
 
-  if (hasAccessError || access == null || !access.hasApplicationAccess) {
+  if (hasAccessError ||
+      access == null ||
+      !access.hasApplicationAccess ||
+      !variant.allows(access)) {
     return location == '/access-denied' ? null : '/access-denied';
   }
 
@@ -54,7 +63,9 @@ String? redirectForAccess({
     return '/app/dashboard';
   }
   if (location == '/access-denied') return null;
-  if (!canAccessLocation(access, location)) return '/access-denied';
+  if (!canAccessLocation(access, location, variant: variant)) {
+    return '/access-denied';
+  }
 
   return null;
 }

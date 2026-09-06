@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:plant_lab/core/access/access_context.dart';
 import 'package:plant_lab/core/access/route_access_policy.dart';
+import 'package:plant_lab/core/config/app_variant.dart';
 
 void main() {
   group('AccessContext', () {
@@ -76,28 +77,100 @@ void main() {
     });
 
     test('LAB_ANALYST can open Lab routes but not Plant routes', () {
-      expect(canAccessLocation(labAnalyst, '/app/dashboard'), isTrue);
-      expect(canAccessLocation(labAnalyst, '/app/lab'), isTrue);
-      expect(canAccessLocation(labAnalyst, '/app/lab/requests/new'), isTrue);
-      expect(canAccessLocation(labAnalyst, '/app/receiving'), isFalse);
       expect(
-        canAccessLocation(labAnalyst, '/app/inspections/new/INTAKE'),
+        canAccessLocation(
+          labAnalyst,
+          '/app/dashboard',
+          variant: AppVariant.lab,
+        ),
+        isTrue,
+      );
+      expect(
+        canAccessLocation(labAnalyst, '/app/lab', variant: AppVariant.lab),
+        isTrue,
+      );
+      expect(
+        canAccessLocation(
+          labAnalyst,
+          '/app/lab/requests/new',
+          variant: AppVariant.lab,
+        ),
+        isTrue,
+      );
+      expect(
+        canAccessLocation(
+          labAnalyst,
+          '/app/receiving',
+          variant: AppVariant.lab,
+        ),
+        isFalse,
+      );
+      expect(
+        canAccessLocation(
+          labAnalyst,
+          '/app/inspections/new/INTAKE',
+          variant: AppVariant.lab,
+        ),
         isFalse,
       );
     });
 
     test('PLANT_SPV can open Plant routes but not Lab routes', () {
-      expect(canAccessLocation(plantSpv, '/app/dashboard'), isTrue);
-      expect(canAccessLocation(plantSpv, '/app/receiving/new'), isTrue);
-      expect(canAccessLocation(plantSpv, '/app/inspections'), isTrue);
-      expect(canAccessLocation(plantSpv, '/app/lab'), isFalse);
+      expect(
+        canAccessLocation(
+          plantSpv,
+          '/app/dashboard',
+          variant: AppVariant.plant,
+        ),
+        isTrue,
+      );
+      expect(
+        canAccessLocation(
+          plantSpv,
+          '/app/receiving/new',
+          variant: AppVariant.plant,
+        ),
+        isTrue,
+      );
+      expect(
+        canAccessLocation(
+          plantSpv,
+          '/app/inspections',
+          variant: AppVariant.plant,
+        ),
+        isTrue,
+      );
+      expect(
+        canAccessLocation(plantSpv, '/app/lab', variant: AppVariant.plant),
+        isFalse,
+      );
     });
 
-    test('PLATFORM_ADMIN can open Plant and Lab routes', () {
-      expect(canAccessLocation(platformAdmin, '/app/dashboard'), isTrue);
-      expect(canAccessLocation(platformAdmin, '/app/receiving'), isTrue);
-      expect(canAccessLocation(platformAdmin, '/app/inspections'), isTrue);
-      expect(canAccessLocation(platformAdmin, '/app/lab'), isTrue);
+    test('PLATFORM_ADMIN is still limited to the installed app variant', () {
+      expect(
+        canAccessLocation(
+          platformAdmin,
+          '/app/receiving',
+          variant: AppVariant.plant,
+        ),
+        isTrue,
+      );
+      expect(
+        canAccessLocation(platformAdmin, '/app/lab', variant: AppVariant.plant),
+        isFalse,
+      );
+      expect(
+        canAccessLocation(platformAdmin, '/app/lab', variant: AppVariant.lab),
+        isTrue,
+      );
+      expect(
+        canAccessLocation(
+          platformAdmin,
+          '/app/inspections',
+          variant: AppVariant.lab,
+        ),
+        isFalse,
+      );
     });
 
     test('redirects unauthenticated, loading, and forbidden routes safely', () {
@@ -108,6 +181,7 @@ void main() {
           isAccessLoading: false,
           hasAccessError: false,
           access: null,
+          variant: AppVariant.lab,
         ),
         '/login',
       );
@@ -118,6 +192,7 @@ void main() {
           isAccessLoading: true,
           hasAccessError: false,
           access: null,
+          variant: AppVariant.lab,
         ),
         '/access-loading',
       );
@@ -128,6 +203,7 @@ void main() {
           isAccessLoading: false,
           hasAccessError: false,
           access: labAnalyst,
+          variant: AppVariant.lab,
         ),
         '/access-denied',
       );
@@ -138,8 +214,20 @@ void main() {
           isAccessLoading: false,
           hasAccessError: false,
           access: labAnalyst,
+          variant: AppVariant.lab,
         ),
         isNull,
+      );
+      expect(
+        redirectForAccess(
+          location: '/app/dashboard',
+          isAuthenticated: true,
+          isAccessLoading: false,
+          hasAccessError: false,
+          access: labAnalyst,
+          variant: AppVariant.plant,
+        ),
+        '/access-denied',
       );
     });
   });

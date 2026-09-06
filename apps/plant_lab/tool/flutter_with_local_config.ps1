@@ -2,6 +2,9 @@
 param(
   [ValidateSet('run', 'build-apk-debug', 'build-apk-release')]
   [string]$Command = 'run',
+  [Parameter(Mandatory = $true)]
+  [ValidateSet('plant', 'lab')]
+  [string]$Flavor,
   [string]$DeviceId = ''
 )
 
@@ -21,6 +24,10 @@ if (-not (Test-Path -LiteralPath $syncScriptPath)) {
 & $syncScriptPath
 
 $configurationArgs = @(
+  '--flavor'
+  $Flavor
+  '--target'
+  "lib/main_$Flavor.dart"
   '--dart-define=OPERATIONAL_WRITES_ENABLED=false'
 )
 

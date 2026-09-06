@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/access/access_context_provider.dart';
 import '../../../core/auth/auth_notifier.dart';
+import '../../../core/config/app_variant.dart';
 
 class AccessDeniedScreen extends ConsumerWidget {
   const AccessDeniedScreen({super.key});
@@ -11,9 +12,10 @@ class AccessDeniedScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final access = ref.watch(accessContextProvider).valueOrNull;
+    final variant = ref.watch(appVariantProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Access restricted')),
+      appBar: AppBar(title: const Text('Akses dibatasi')),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -26,30 +28,30 @@ class AccessDeniedScreen extends ConsumerWidget {
                   const Icon(Icons.gpp_bad_outlined, size: 64),
                   const SizedBox(height: 20),
                   Text(
-                    'Your role cannot open this page',
+                    'Akun tidak memiliki akses ${variant.appName}',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
                   const SizedBox(height: 12),
                   Text(
                     access == null
-                        ? 'Plant/Lab could not load an active module and site assignment for this account.'
-                        : '${access.primaryRoleName} is scoped to ${access.siteSummary}.',
+                        ? 'Aplikasi tidak menemukan assignment modul dan site yang aktif untuk akun ini.'
+                        : '${access.primaryRoleName} memiliki scope ${access.siteSummary}, tetapi bukan untuk aplikasi ${variant.moduleName}.',
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 24),
-                  if (access?.hasApplicationAccess ?? false)
+                  if (access != null && variant.allows(access))
                     FilledButton.icon(
                       onPressed: () => context.go('/app/dashboard'),
                       icon: const Icon(Icons.dashboard_outlined),
-                      label: const Text('Return to dashboard'),
+                      label: const Text('Kembali ke dashboard'),
                     ),
                   const SizedBox(height: 8),
                   TextButton.icon(
                     onPressed: () =>
                         ref.read(authNotifierProvider.notifier).signOut(),
                     icon: const Icon(Icons.logout),
-                    label: const Text('Sign out'),
+                    label: const Text('Keluar'),
                   ),
                 ],
               ),

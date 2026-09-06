@@ -4,9 +4,10 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/config/app_config.dart';
+import '../../core/config/app_variant.dart';
 import '../../plant_lab_app.dart';
 
-Future<void> bootstrap() async {
+Future<void> bootstrap(AppVariant variant) async {
   WidgetsFlutterBinding.ensureInitialized();
 
   SystemChrome.setSystemUIOverlayStyle(
@@ -25,7 +26,9 @@ Future<void> bootstrap() async {
 
   final configurationError = AppConfig.configurationError;
   if (configurationError != null) {
-    runApp(_ConfigurationErrorApp(message: configurationError));
+    runApp(
+      _ConfigurationErrorApp(variant: variant, message: configurationError),
+    );
     return;
   }
 
@@ -34,17 +37,24 @@ Future<void> bootstrap() async {
     publishableKey: AppConfig.supabasePublishableKey,
   );
 
-  runApp(const ProviderScope(child: PlantLabApp()));
+  runApp(
+    ProviderScope(
+      overrides: [appVariantProvider.overrideWithValue(variant)],
+      child: const PlantLabApp(),
+    ),
+  );
 }
 
 class _ConfigurationErrorApp extends StatelessWidget {
-  const _ConfigurationErrorApp({required this.message});
+  const _ConfigurationErrorApp({required this.variant, required this.message});
 
+  final AppVariant variant;
   final String message;
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      title: variant.appName,
       debugShowCheckedModeBanner: false,
       home: Scaffold(
         body: SafeArea(
@@ -58,10 +68,10 @@ class _ConfigurationErrorApp extends StatelessWidget {
                   children: [
                     const Icon(Icons.warning_amber_rounded, size: 64),
                     const SizedBox(height: 20),
-                    const Text(
-                      'Konfigurasi aplikasi belum lengkap',
+                    Text(
+                      'Konfigurasi ${variant.appName} belum lengkap',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
                       ),
@@ -69,8 +79,10 @@ class _ConfigurationErrorApp extends StatelessWidget {
                     const SizedBox(height: 12),
                     Text(message, textAlign: TextAlign.center),
                     const SizedBox(height: 12),
-                    const Text(
-                      'Jalankan kembali menggunakan tool\\flutter_with_local_config.ps1 atau berikan --dart-define yang sesuai.',
+                    Text(
+                      'Jalankan kembali flavor ${variant.name} menggunakan '
+                      'tool\\flutter_with_local_config.ps1 atau berikan '
+                      '--dart-define yang sesuai.',
                       textAlign: TextAlign.center,
                     ),
                   ],

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/auth/auth_notifier.dart';
 import '../../../core/auth/auth_state.dart';
+import '../../../core/config/app_variant.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_text_styles.dart';
 
@@ -27,16 +28,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   void _submit() {
     if (_formKey.currentState!.validate()) {
-      ref.read(authNotifierProvider.notifier).signIn(
-        _emailController.text.trim(),
-        _passwordController.text,
-      );
+      ref
+          .read(authNotifierProvider.notifier)
+          .signIn(_emailController.text.trim(), _passwordController.text);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authNotifierProvider);
+    final variant = ref.watch(appVariantProvider);
 
     ref.listen(authNotifierProvider, (previous, next) {
       final current = next.valueOrNull;
@@ -60,10 +61,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     final currentVal = authState.valueOrNull;
     final isLoading = currentVal != null
-        ? currentVal.maybeWhen(
-            loading: () => true,
-            orElse: () => false,
-          )
+        ? currentVal.maybeWhen(loading: () => true, orElse: () => false)
         : false;
 
     return Scaffold(
@@ -102,23 +100,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ),
                         ],
                       ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(24),
-                        child: Image.asset(
-                          'assets/logo_plant_lab.png',
-                          fit: BoxFit.contain,
-                        ),
+                      child: Icon(
+                        variant.isPlant ? Icons.agriculture : Icons.science,
+                        color: AppColors.accent,
+                        size: 62,
                       ),
                     ),
                     const SizedBox(height: 24),
-                    const Text(
-                      'Plant + Lab',
+                    Text(
+                      variant.appName,
                       style: AppTextStyles.heading1,
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 8),
-                    const Text(
-                      'Advanta Quality Platform',
+                    Text(
+                      variant.tagline,
                       style: AppTextStyles.body1,
                       textAlign: TextAlign.center,
                     ),
@@ -161,7 +157,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               width: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
                               ),
                             )
                           : const Text('Masuk'),

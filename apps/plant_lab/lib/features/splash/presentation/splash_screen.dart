@@ -4,18 +4,21 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../app/theme/app_colors.dart';
+import '../../../core/config/app_variant.dart';
 
-class PlantLabSplashScreen extends StatefulWidget {
+class PlantLabSplashScreen extends ConsumerStatefulWidget {
   const PlantLabSplashScreen({super.key});
 
   @override
-  State<PlantLabSplashScreen> createState() => _PlantLabSplashScreenState();
+  ConsumerState<PlantLabSplashScreen> createState() =>
+      _PlantLabSplashScreenState();
 }
 
-class _PlantLabSplashScreenState extends State<PlantLabSplashScreen> {
+class _PlantLabSplashScreenState extends ConsumerState<PlantLabSplashScreen> {
   static const _minimumSplashDuration = Duration(milliseconds: 2600);
 
   final DateTime _startedAt = DateTime.now();
@@ -90,21 +93,22 @@ class _PlantLabSplashScreenState extends State<PlantLabSplashScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final variant = ref.watch(appVariantProvider);
+    final gradientColors = variant.isPlant
+        ? const [Color(0xFF075E3A), Color(0xFF06432D), Color(0xFF032B1D)]
+        : const [Color(0xFF002855), Color(0xFF011A3A), Color(0xFF001127)];
+
     return Scaffold(
       body: Stack(
         fit: StackFit.expand,
         children: [
           // Background Gradient (Advanta Navy Theme)
-          const DecoratedBox(
+          DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [
-                  Color(0xFF002855), // Plant+Lab Navy
-                  Color(0xFF011A3A),
-                  Color(0xFF001127),
-                ],
+                colors: gradientColors,
               ),
             ),
           ),
@@ -134,18 +138,17 @@ class _PlantLabSplashScreenState extends State<PlantLabSplashScreen> {
                         ),
                       ],
                     ),
-                    child: ClipOval(
-                      child: Image.asset(
-                        'assets/logo_plant_lab.png',
-                        fit: BoxFit.contain,
-                      ),
+                    child: Icon(
+                      variant.isPlant ? Icons.agriculture : Icons.science,
+                      color: Colors.white,
+                      size: 86,
                     ),
                   ),
                   const SizedBox(height: 24),
-                  const Text(
-                    'Plant + Lab',
+                  Text(
+                    variant.appName,
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: 'Inter',
                       color: Colors.white,
                       fontSize: 32,
@@ -155,7 +158,7 @@ class _PlantLabSplashScreenState extends State<PlantLabSplashScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Quality & Operations Analytics\nAdvanta Seeds Indonesia',
+                    '${variant.tagline}\nAdvanta Seeds Indonesia',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontFamily: 'Inter',

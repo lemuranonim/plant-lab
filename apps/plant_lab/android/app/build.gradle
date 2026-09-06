@@ -19,12 +19,24 @@ android {
     namespace 'com.plantlab.plant_lab'
     compileSdkVersion 36
 
+    flavorDimensions += "module"
+
     defaultConfig {
-        applicationId "com.plantlab.plant_lab"
         minSdkVersion flutter.minSdkVersion
         targetSdkVersion 36
         versionCode flutterVersionCode
         versionName flutterVersionName
+    }
+
+    productFlavors {
+        plant {
+            dimension "module"
+            applicationId "com.advantaindonesia.plant"
+        }
+        lab {
+            dimension "module"
+            applicationId "com.advantaindonesia.lab"
+        }
     }
 
     compileOptions {

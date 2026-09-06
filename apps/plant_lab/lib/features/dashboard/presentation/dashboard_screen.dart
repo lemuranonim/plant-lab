@@ -7,6 +7,7 @@ import '../../../app/theme/app_text_styles.dart';
 import '../../../core/access/access_context_provider.dart';
 import '../../../core/auth/auth_notifier.dart';
 import '../../../core/config/app_config.dart';
+import '../../../core/config/app_variant.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../lab_test/data/lab_repository.dart';
 import '../../plant_inspection/data/inspection_repository.dart';
@@ -18,6 +19,7 @@ class DashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final access = ref.watch(accessContextProvider).valueOrNull;
+    final variant = ref.watch(appVariantProvider);
     if (access == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
@@ -32,7 +34,7 @@ class DashboardScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Plant+Lab'),
+        title: Text(variant.appName),
         actions: [
           IconButton(
             tooltip: 'Keluar',
@@ -72,7 +74,7 @@ class DashboardScreen extends ConsumerWidget {
                   spacing: gap,
                   runSpacing: gap,
                   children: [
-                    if (access.canAccessPlant) ...[
+                    if (variant.isPlant && access.canAccessPlant) ...[
                       SizedBox(
                         width: width,
                         child: _DashboardMetric(
@@ -108,7 +110,7 @@ class DashboardScreen extends ConsumerWidget {
                         ),
                       ),
                     ],
-                    if (access.canAccessLab)
+                    if (variant.isLab && access.canAccessLab)
                       SizedBox(
                         width: width,
                         child: _DashboardMetric(
@@ -139,7 +141,7 @@ class DashboardScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 12),
-            if (access.canAccessPlant) ...[
+            if (variant.isPlant && access.canAccessPlant) ...[
               _ActionTile(
                 icon: Icons.assignment_add,
                 title: 'Plant Process Inspection',
@@ -174,7 +176,7 @@ class DashboardScreen extends ConsumerWidget {
               mutedTextColor: mutedTextColor,
               onTap: () => context.push('/app/scanner'),
             ),
-            if (access.canAccessLab) ...[
+            if (variant.isLab && access.canAccessLab) ...[
               const SizedBox(height: 12),
               _ActionTile(
                 icon: Icons.local_shipping,
@@ -210,7 +212,7 @@ class DashboardScreen extends ConsumerWidget {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Keluar dari aplikasi?'),
         content: const Text(
-          'Sesi Plant+Lab pada perangkat ini akan diakhiri. Anda perlu login '
+          'Sesi aplikasi pada perangkat ini akan diakhiri. Anda perlu login '
           'kembali untuk melanjutkan.',
         ),
         actions: [
