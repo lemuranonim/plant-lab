@@ -50,7 +50,6 @@ export default function LabQualityPage() {
       setLoading(false);
     }
 
-    setLoading(true);
     fetchData();
   }, [statusFilter, categoryFilter]);
 
@@ -64,8 +63,6 @@ export default function LabQualityPage() {
       (item.test_category && item.test_category.toLowerCase().includes(q))
     );
   });
-
-  const categories = ['ALL', 'FC', 'SWC', 'FG_FC', 'FG_SWC', 'PS', 'PREBASIC', 'VEGE'];
 
   return (
     <div className={styles.container}>
@@ -105,7 +102,10 @@ export default function LabQualityPage() {
             <select 
               className={styles.filterSelect}
               value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
+              onChange={(e) => {
+                setLoading(true);
+                setCategoryFilter(e.target.value);
+              }}
             >
               <option value="ALL">All Crops</option>
               <option value="FC">FC (Field Corn)</option>
@@ -123,7 +123,12 @@ export default function LabQualityPage() {
             <select 
               className={styles.filterSelect}
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
+              onChange={(e) => {
+                setLoading(true);
+                setStatusFilter(
+                  e.target.value as 'ALL' | 'ACCEPTED' | 'REJECTED',
+                );
+              }}
             >
               <option value="ALL">All Records</option>
               <option value="ACCEPTED">✓ Accepted</option>

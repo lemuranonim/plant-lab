@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import styles from '../lab-quality/lab-quality.module.css';
-import { requireAccess } from '@/lib/accessContext';
+import { requireVariantAccess } from '@/lib/accessContext';
 
 export const revalidate = 0;
 
@@ -15,7 +15,7 @@ type InspectionRow = {
 };
 
 export default async function InspectionsPage() {
-  await requireAccess('can_access_plant');
+  await requireVariantAccess('PLANT');
   const supabase = await createClient();
   const { data: inspections, error } = await supabase
     .from('pl_inspections')

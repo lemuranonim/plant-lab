@@ -26,6 +26,11 @@ enum AppVariant {
     AppVariant.lab => 'Laboratory Quality Operations',
   };
 
+  String get logoAsset => switch (this) {
+    AppVariant.plant => 'assets/logo_plant.png',
+    AppVariant.lab => 'assets/logo_lab.png',
+  };
+
   bool get isPlant => this == AppVariant.plant;
   bool get isLab => this == AppVariant.lab;
 

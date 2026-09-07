@@ -1,8 +1,188 @@
 import { createClient } from '@/lib/supabase/server';
 import styles from './dashboard.module.css';
 import Link from 'next/link';
+import { getAppVariant } from '@/lib/appVariant';
 
-export default async function DashboardPage() {
+type PlantHarvestRow = {
+  id: string | number;
+  lot_id_raw: string | null;
+  hybrid_code: string | null;
+  shelling_qty_kg: number | null;
+  incoming_date: string | null;
+  field_status: string | null;
+};
+
+export default function DashboardPage() {
+  const variant = getAppVariant();
+  return variant.code === 'PLANT' ? <PlantDashboard /> : <LabDashboard />;
+}
+
+async function PlantDashboard() {
+  const supabase = await createClient();
+  const [harvestResult, inspectionResult, oosResult] = await Promise.all([
+    supabase
+      .from('pl_receiving_harvest')
+      .select(
+        'id, lot_id_raw, hybrid_code, shelling_qty_kg, incoming_date, field_status',
+        { count: 'exact' },
+      )
+      .order('incoming_date', { ascending: false })
+      .limit(8),
+    supabase
+      .from('pl_inspections')
+      .select('id', { count: 'exact', head: true }),
+    supabase
+      .from('pl_inspections')
+      .select('id', { count: 'exact', head: true })
+      .eq('is_oos', true),
+  ]);
+
+  const harvests = (harvestResult.data ?? []) as PlantHarvestRow[];
+  const recentVolumeKg = harvests.reduce(
+    (total, item) => total + Number(item.shelling_qty_kg ?? 0),
+    0,
+  );
+  const firstError =
+    harvestResult.error ?? inspectionResult.error ?? oosResult.error;
+
+  return (
+    <div className={styles.container}>
+      <div className={styles.header}>
+        <div>
+          <h1 className={styles.title}>Advanta Plant Dashboard</h1>
+          <p className={styles.subtitle}>
+            Receiving harvest dan inspeksi proses Plant Pasuruan
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Link href="/receiving" className="btn btn-outline text-sm">
+            Receiving Harvest
+          </Link>
+          <Link href="/inspections" className="btn btn-outline text-sm">
+            Plant Inspections
+          </Link>
+        </div>
+      </div>
+
+      {firstError && (
+        <div className="bg-red-500/10 border border-red-500/30 text-red-500 p-4 rounded-xl mb-6 flex items-center gap-3">
+          <span>Data Plant belum dapat dimuat: {firstError.message}</span>
+        </div>
+      )}
+
+      <div className={styles.statsGrid}>
+        <DashboardMetric
+          icon="🚚"
+          label="Receiving Records"
+          value={harvestResult.count ?? 0}
+        />
+        <DashboardMetric
+          icon="📋"
+          label="Plant Inspections"
+          value={inspectionResult.count ?? 0}
+        />
+        <DashboardMetric
+          icon="⚠️"
+          label="Out of Spec"
+          value={oosResult.count ?? 0}
+        />
+        <DashboardMetric
+          icon="⚖️"
+          label="Latest 8 Volume (kg)"
+          value={recentVolumeKg.toLocaleString('id-ID')}
+        />
+      </div>
+
+      <div className={styles.contentGrid}>
+        <div className={`${styles.mainPanel} card`}>
+          <div className={styles.panelHeader}>
+            <div>
+              <h2 className="text-xl font-bold">Receiving Terbaru</h2>
+              <p className="text-xs text-text-muted mt-0.5">
+                Data intake panen terbaru yang tersedia untuk site Plant
+              </p>
+            </div>
+            <Link href="/receiving" className="btn btn-ghost text-xs">
+              Lihat Semua →
+            </Link>
+          </div>
+
+          <div className={styles.tableWrapper}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Lot</th>
+                  <th>Hybrid</th>
+                  <th>Volume</th>
+                  <th>Incoming Date</th>
+                  <th>Field Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {harvests.map((item) => (
+                  <tr key={item.id}>
+                    <td className="font-semibold text-text-primary">
+                      {item.lot_id_raw || 'N/A'}
+                    </td>
+                    <td>
+                      <span className="badge badge-gold">
+                        {item.hybrid_code || '-'}
+                      </span>
+                    </td>
+                    <td>
+                      {Number(item.shelling_qty_kg ?? 0).toLocaleString('id-ID')} kg
+                    </td>
+                    <td>
+                      {item.incoming_date
+                        ? new Date(item.incoming_date).toLocaleDateString('id-ID')
+                        : '-'}
+                    </td>
+                    <td>
+                      <span className="badge badge-neutral">
+                        {item.field_status || 'PENDING'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {harvests.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="text-center py-8 text-text-muted">
+                      Belum ada data receiving.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DashboardMetric({
+  icon,
+  label,
+  value,
+}: {
+  icon: string;
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className={`${styles.statCard} card`}>
+      <div className={styles.statIconWrapper} aria-hidden="true">
+        <span style={{ fontSize: '1.4rem' }}>{icon}</span>
+      </div>
+      <div className={styles.statContent}>
+        <div className={styles.statLabel}>{label}</div>
+        <div className={styles.statValue}>{value}</div>
+      </div>
+    </div>
+  );
+}
+
+async function LabDashboard() {
   const supabase = await createClient();
 
   // Fetch summary stats using custom RPC
@@ -30,7 +210,7 @@ export default async function DashboardPage() {
     <div className={styles.container}>
       <div className={styles.header}>
         <div>
-          <h1 className={styles.title}>Plant+Lab Quality Dashboard</h1>
+          <h1 className={styles.title}>Advanta Lab Dashboard</h1>
           <p className={styles.subtitle}>Real-time seed quality analytics & germination performance (CY2026)</p>
         </div>
         <div className="flex gap-2">
@@ -185,7 +365,7 @@ export default async function DashboardPage() {
                 ))}
                 {(!recentLots || recentLots.length === 0) && (
                   <tr>
-                    <td colSpan={8} className="text-center py-8 text-text-muted">
+                    <td colSpan={7} className="text-center py-8 text-text-muted">
                       No recent seed quality data found.
                     </td>
                   </tr>

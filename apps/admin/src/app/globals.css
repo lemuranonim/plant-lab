@@ -71,6 +71,24 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+body[data-app-variant="plant"] {
+  --bg-sidebar: #052e20;
+}
+
+body[data-app-variant="lab"] {
+  --bg-sidebar: #001a3a;
+}
+
+[data-theme="dark"] body[data-app-variant="plant"],
+body[data-theme="dark"][data-app-variant="plant"] {
+  --bg-sidebar: #031d14;
+}
+
+[data-theme="dark"] body[data-app-variant="lab"],
+body[data-theme="dark"][data-app-variant="lab"] {
+  --bg-sidebar: #001127;
+}
+
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
   letter-spacing: -0.02em;

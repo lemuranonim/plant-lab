@@ -1,10 +1,10 @@
-import { requireAccess } from '@/lib/accessContext';
+import { requireVariantAccess } from '@/lib/accessContext';
 
 export default async function LabQualityLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  await requireAccess('can_access_lab');
+  await requireVariantAccess('LAB');
   return children;
 }

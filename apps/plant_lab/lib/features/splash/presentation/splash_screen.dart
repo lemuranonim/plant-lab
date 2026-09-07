@@ -138,10 +138,10 @@ class _PlantLabSplashScreenState extends ConsumerState<PlantLabSplashScreen> {
                         ),
                       ],
                     ),
-                    child: Icon(
-                      variant.isPlant ? Icons.agriculture : Icons.science,
-                      color: Colors.white,
-                      size: 86,
+                    child: Image.asset(
+                      variant.logoAsset,
+                      fit: BoxFit.contain,
+                      semanticLabel: 'Logo ${variant.appName}',
                     ),
                   ),
                   const SizedBox(height: 24),

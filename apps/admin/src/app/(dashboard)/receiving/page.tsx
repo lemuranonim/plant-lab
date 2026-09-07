@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import styles from '../lab-quality/lab-quality.module.css';
-import { requireAccess } from '@/lib/accessContext';
+import { requireVariantAccess } from '@/lib/accessContext';
 
 export const revalidate = 0;
 
@@ -16,7 +16,7 @@ type ReceivingHarvestRow = {
 };
 
 export default async function ReceivingPage() {
-  await requireAccess('can_access_plant');
+  await requireVariantAccess('PLANT');
   const supabase = await createClient();
   const { data: harvests, error } = await supabase
     .from('pl_receiving_harvest')

@@ -6,14 +6,17 @@ export default function ThemeToggle() {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem('plant_lab_theme') as 'light' | 'dark' | null;
-    if (savedTheme) {
-      setTheme(savedTheme);
-      document.documentElement.setAttribute('data-theme', savedTheme);
-    } else {
-      // Default to light mode for crisp seed company look
-      document.documentElement.setAttribute('data-theme', 'light');
-    }
+    const animationFrame = window.requestAnimationFrame(() => {
+      const savedTheme = localStorage.getItem('plant_lab_theme') as
+        | 'light'
+        | 'dark'
+        | null;
+      const initialTheme = savedTheme ?? 'light';
+      setTheme(initialTheme);
+      document.documentElement.setAttribute('data-theme', initialTheme);
+    });
+
+    return () => window.cancelAnimationFrame(animationFrame);
   }, []);
 
   const toggleTheme = () => {

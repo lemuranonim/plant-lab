@@ -91,6 +91,8 @@ flutter:
   uses-material-design: true
   assets:
     - assets/logo_plant_lab.png
+    - assets/logo_plant.png
+    - assets/logo_lab.png
     - assets/icon.png
     - .env
 

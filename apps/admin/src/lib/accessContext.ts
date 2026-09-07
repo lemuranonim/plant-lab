@@ -1,6 +1,7 @@
 import { cache } from 'react';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { getAppVariant, type AppVariantCode } from '@/lib/appVariant';
 
 export type AccessSite = {
   id: string;
@@ -69,4 +70,19 @@ export async function requireAccess(capability: AccessCapability) {
   }
 
   return context;
+}
+
+export async function requireCurrentVariantAccess() {
+  const variant = getAppVariant();
+  return requireAccess(variant.accessCapability);
+}
+
+export async function requireVariantAccess(expectedVariant: AppVariantCode) {
+  const variant = getAppVariant();
+
+  if (variant.code !== expectedVariant) {
+    redirect('/access-denied');
+  }
+
+  return requireAccess(variant.accessCapability);
 }
