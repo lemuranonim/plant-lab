@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
+import { isolatedPlantLab, standalonePreview } from '@/lib/supabase/config';
 import styles from './login.module.css';
 
 type LoginBrand = {
@@ -53,7 +54,7 @@ export default function LoginForm({ brand }: { brand: LoginBrand }) {
       return;
     }
 
-    router.replace('/dashboard');
+    router.replace(isolatedPlantLab ? '/lab-requests' : '/dashboard');
     router.refresh();
   };
 
@@ -93,7 +94,9 @@ export default function LoginForm({ brand }: { brand: LoginBrand }) {
           </div>
           <h2 className={styles.formTitle}>Selamat datang</h2>
           <p className={styles.formSubtitle}>
-            Masuk menggunakan akun {brand.appName} Anda.
+            {standalonePreview
+              ? 'Preview lokal. Gunakan akun uji, bukan akun production.'
+              : 'Masuk menggunakan akun ' + brand.appName + ' Anda.'}
           </p>
 
           {error && (

@@ -13,20 +13,49 @@ class AppTheme {
       onSecondary: Colors.white,
       onSurface: AppColors.textPrimaryLight,
       onError: Colors.white,
+      secondaryContainer: Color(0xFFE2F3EC),
+      onSecondaryContainer: Color(0xFF07543D),
+      surfaceContainerLow: Color(0xFFF0F5F2),
     );
 
     return ThemeData(
       brightness: Brightness.light,
+      useMaterial3: true,
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
       scaffoldBackgroundColor: AppColors.backgroundLight,
       colorScheme: colorScheme,
       fontFamily: AppTextStyles.fontFamily,
       textTheme: const TextTheme(
-        displayLarge: TextStyle(color: AppColors.textPrimaryLight, fontWeight: FontWeight.bold, fontSize: 32),
-        displayMedium: TextStyle(color: AppColors.textPrimaryLight, fontWeight: FontWeight.bold, fontSize: 24),
-        displaySmall: TextStyle(color: AppColors.textPrimaryLight, fontWeight: FontWeight.bold, fontSize: 18),
+        displayLarge: TextStyle(
+          color: AppColors.textPrimaryLight,
+          fontWeight: FontWeight.bold,
+          fontSize: 32,
+        ),
+        displayMedium: TextStyle(
+          color: AppColors.textPrimaryLight,
+          fontWeight: FontWeight.bold,
+          fontSize: 24,
+        ),
+        displaySmall: TextStyle(
+          color: AppColors.textPrimaryLight,
+          fontWeight: FontWeight.bold,
+          fontSize: 18,
+        ),
         bodyLarge: TextStyle(color: AppColors.textPrimaryLight, fontSize: 16),
-        bodyMedium: TextStyle(color: AppColors.textSecondaryLight, fontSize: 14),
-        labelLarge: TextStyle(color: AppColors.textPrimaryLight, fontWeight: FontWeight.w600, fontSize: 14),
+        bodyMedium: TextStyle(
+          color: AppColors.textSecondaryLight,
+          fontSize: 14,
+        ),
+        labelLarge: TextStyle(
+          color: AppColors.textPrimaryLight,
+          fontWeight: FontWeight.w600,
+          fontSize: 14,
+        ),
         labelSmall: TextStyle(color: AppColors.textMutedLight, fontSize: 12),
         bodySmall: TextStyle(color: AppColors.textMutedLight, fontSize: 12),
       ),
@@ -42,7 +71,11 @@ class AppTheme {
         backgroundColor: AppColors.surfaceLight,
         elevation: 0,
         centerTitle: true,
-        titleTextStyle: TextStyle(color: AppColors.textPrimaryLight, fontWeight: FontWeight.bold, fontSize: 18),
+        titleTextStyle: TextStyle(
+          color: AppColors.textPrimaryLight,
+          fontWeight: FontWeight.bold,
+          fontSize: 18,
+        ),
         iconTheme: IconThemeData(color: AppColors.textPrimaryLight),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
@@ -55,7 +88,10 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.surfaceLight,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.cardBorderLight),
@@ -72,8 +108,14 @@ class AppTheme {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.danger),
         ),
-        labelStyle: const TextStyle(color: AppColors.textSecondaryLight, fontSize: 14),
-        hintStyle: const TextStyle(color: AppColors.textMutedLight, fontSize: 14),
+        labelStyle: const TextStyle(
+          color: AppColors.textSecondaryLight,
+          fontSize: 14,
+        ),
+        hintStyle: const TextStyle(
+          color: AppColors.textMutedLight,
+          fontSize: 14,
+        ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -92,28 +134,54 @@ class AppTheme {
 
   static ThemeData get dark {
     final colorScheme = const ColorScheme.dark(
-      primary: AppColors.accent,
+      primary: AppColors.accentLight,
       secondary: AppColors.accentDark,
       surface: AppColors.surfaceDark,
       error: AppColors.danger,
-      onPrimary: Colors.white,
+      onPrimary: Color(0xFF052E20),
       onSecondary: Colors.white,
       onSurface: AppColors.textPrimaryDark,
       onError: Colors.white,
+      secondaryContainer: Color(0xFF123C30),
+      onSecondaryContainer: Color(0xFFB8F4D8),
+      surfaceContainerLow: Color(0xFF17251E),
     );
 
     return ThemeData(
       brightness: Brightness.dark,
+      useMaterial3: true,
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
       scaffoldBackgroundColor: AppColors.backgroundDark,
       colorScheme: colorScheme,
       fontFamily: AppTextStyles.fontFamily,
       textTheme: const TextTheme(
-        displayLarge: TextStyle(color: AppColors.textPrimaryDark, fontWeight: FontWeight.bold, fontSize: 32),
-        displayMedium: TextStyle(color: AppColors.textPrimaryDark, fontWeight: FontWeight.bold, fontSize: 24),
-        displaySmall: TextStyle(color: AppColors.textPrimaryDark, fontWeight: FontWeight.bold, fontSize: 18),
+        displayLarge: TextStyle(
+          color: AppColors.textPrimaryDark,
+          fontWeight: FontWeight.bold,
+          fontSize: 32,
+        ),
+        displayMedium: TextStyle(
+          color: AppColors.textPrimaryDark,
+          fontWeight: FontWeight.bold,
+          fontSize: 24,
+        ),
+        displaySmall: TextStyle(
+          color: AppColors.textPrimaryDark,
+          fontWeight: FontWeight.bold,
+          fontSize: 18,
+        ),
         bodyLarge: TextStyle(color: AppColors.textPrimaryDark, fontSize: 16),
         bodyMedium: TextStyle(color: AppColors.textSecondaryDark, fontSize: 14),
-        labelLarge: TextStyle(color: AppColors.textPrimaryDark, fontWeight: FontWeight.w600, fontSize: 14),
+        labelLarge: TextStyle(
+          color: AppColors.textPrimaryDark,
+          fontWeight: FontWeight.w600,
+          fontSize: 14,
+        ),
         labelSmall: TextStyle(color: AppColors.textMutedDark, fontSize: 12),
         bodySmall: TextStyle(color: AppColors.textMutedDark, fontSize: 12),
       ),
@@ -129,7 +197,11 @@ class AppTheme {
         backgroundColor: AppColors.surfaceDark,
         elevation: 0,
         centerTitle: true,
-        titleTextStyle: TextStyle(color: AppColors.textPrimaryDark, fontWeight: FontWeight.bold, fontSize: 18),
+        titleTextStyle: TextStyle(
+          color: AppColors.textPrimaryDark,
+          fontWeight: FontWeight.bold,
+          fontSize: 18,
+        ),
         iconTheme: IconThemeData(color: AppColors.textPrimaryDark),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
@@ -142,7 +214,10 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.surfaceDark,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.cardBorderDark),
@@ -159,8 +234,14 @@ class AppTheme {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.danger),
         ),
-        labelStyle: const TextStyle(color: AppColors.textSecondaryDark, fontSize: 14),
-        hintStyle: const TextStyle(color: AppColors.textMutedDark, fontSize: 14),
+        labelStyle: const TextStyle(
+          color: AppColors.textSecondaryDark,
+          fontSize: 14,
+        ),
+        hintStyle: const TextStyle(
+          color: AppColors.textMutedDark,
+          fontSize: 14,
+        ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(

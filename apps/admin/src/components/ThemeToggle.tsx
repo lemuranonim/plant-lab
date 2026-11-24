@@ -30,8 +30,8 @@ export default function ThemeToggle() {
     <button
       onClick={toggleTheme}
       className="theme-toggle-btn"
-      title={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}
-      aria-label="Toggle Theme"
+      title={`Ganti ke mode ${theme === 'light' ? 'gelap' : 'terang'}`}
+      aria-label={`Ganti ke mode ${theme === 'light' ? 'gelap' : 'terang'}`}
     >
       {theme === 'light' ? (
         /* Moon Icon */
@@ -52,7 +52,7 @@ export default function ThemeToggle() {
           <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
         </svg>
       )}
-      <span className="theme-toggle-label">{theme === 'light' ? 'Dark Mode' : 'Light Mode'}</span>
+      <span className="theme-toggle-label">{theme === 'light' ? 'Mode gelap' : 'Mode terang'}</span>
     </button>
   );
 }

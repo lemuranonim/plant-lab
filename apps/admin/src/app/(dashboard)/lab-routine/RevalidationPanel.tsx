@@ -1,0 +1,56 @@
+'use client';
+import {useRef,useState,type FormEvent} from 'react';
+import {createClient} from '@/lib/supabase/client';
+import {canonicalWritesEnabled,isolatedApiSchema} from '@/lib/supabase/config';
+import {fromWibInput,wibInput} from '@/lib/routineLabDraft';
+import {samplePlanLabel,type RevalidationOptions,type RevalidationPage,type RevalidationSource,type RevalidationAuthorization} from '@/lib/labRevalidation';
+import styles from './routine.module.css';
+
+export default function RevalidationPanel({labSiteId,onCreated}:{labSiteId:string;onCreated:()=>Promise<void>}){
+ const [options,setOptions]=useState<RevalidationOptions|null>(null),[page,setPage]=useState<RevalidationPage|null>(null);
+ const [search,setSearch]=useState(''),[applied,setApplied]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
+ const [source,setSource]=useState<RevalidationSource|null>(null),[selected,setSelected]=useState<RevalidationAuthorization|null>(null),[mode,setMode]=useState<'START'|'CANCEL'>('START');
+ const [name,setName]=useState(''),[reason,setReason]=useState(''),[evidence,setEvidence]=useState(''),[plan,setPlan]=useState(''),[reference,setReference]=useState(''),[available,setAvailable]=useState(''),[reps,setReps]=useState(2),[confirmed,setConfirmed]=useState(false);
+ const lock=useRef(false),action=useRef<{payload:string;id:string}|null>(null),api=()=>createClient().schema(isolatedApiSchema);
+ async function read(cOffset=options?.offset??0,aOffset=page?.offset??0,term=applied){
+  const [c,a]=await Promise.all([api().rpc('get_lab_revalidation_options',{p_lab_site_id:labSiteId,p_search:term,p_offset:cOffset}),api().rpc('list_lab_revalidations',{p_lab_site_id:labSiteId,p_offset:aOffset})]);
+  if(c.error||a.error)throw Error();setOptions(c.data);setPage(a.data);setApplied(term);
+ }
+ async function load(cOffset=0,aOffset=0,term=search){if(lock.current)return;lock.current=true;setBusy(true);setError('');try{await read(cOffset,aOffset,term);}catch{setError('Revalidation belum dimuat. Periksa akses dan koneksi, lalu coba lagi. Ini bukan berarti daftar kosong.');}finally{lock.current=false;setBusy(false);}}
+ function reset(){setSource(null);setSelected(null);setConfirmed(false);setReason('');setEvidence('');setPlan('');setName('');setAvailable('');setReference('');setError('');setMessage('');}
+ async function save(e:FormEvent){
+  e.preventDefault();if(lock.current||!confirmed||!canonicalWritesEnabled)return;
+  let command:string,args:Record<string,unknown>;
+  if(source){if(!options?.can_authorize||!name.trim()||reason.trim().length<3||evidence.trim().length<3||!plan)return;
+   command='authorize_lab_revalidation';args={p_lab_site_id:labSiteId,p_source_run_id:source.run_id,p_authorizer_name:name.trim(),p_reason:reason.trim(),p_sample_plan:plan,p_sample_evidence:evidence.trim()};
+  }else if(selected&&mode==='START'){if(!selected.can_start||!reference.trim()||!available)return;
+   command='start_lab_revalidation';args={p_authorization_id:selected.id,p_sample_reference:reference.trim(),p_available_at:fromWibInput(available),p_replicate_count:reps,p_sample_confirmed:true};
+  }else if(selected&&mode==='CANCEL'){if(!selected.can_cancel||reason.trim().length<3)return;
+   command='cancel_lab_revalidation';args={p_authorization_id:selected.id,p_reason:reason.trim()};
+  }else return;
+  const payload=JSON.stringify({command,...args});if(action.current?.payload!==payload)action.current={payload,id:crypto.randomUUID()};
+  lock.current=true;setBusy(true);setError('');setMessage('');
+  try{const r=await api().rpc(command,{...args,p_action_id:action.current.id});if(r.error)throw Error(r.error.code);
+   const created=command==='start_lab_revalidation';await read(0,0,applied);action.current=null;reset();
+   setMessage(created?'Catatan Revalidation baru sudah disiapkan dengan hitungan kosong. Buka Lanjut isi pada daftar catatan rutin di bawah.':command==='authorize_lab_revalidation'?'Persetujuan tersimpan. Analis mencocokkan sampel nyata sebelum menyiapkan catatan baru.':'Persetujuan dibatalkan. Alasan tetap tersimpan; tidak menghapus hasil uji.');
+   if(created)await onCreated();
+  }catch(e){setError(e instanceof Error&&['55000','40001','PT409'].includes(e.message)?'Tahap/status sudah berubah. Muat ulang daftar; jangan membuat persetujuan atau catatan kedua.':'Belum berhasil dikonfirmasi. Periksa nama, rencana/label sampel, tanggal dan hak akses. Jika koneksi terputus, ulangi isian sama.');}finally{lock.current=false;setBusy(false);}
+ }
+ return <details className={styles.panel} data-testid="lab-revalidation"><summary><strong>Revalidation 1–3 · persetujuan manual Admin Lab</strong></summary>
+  <p>Gunakan hasil sumber yang sudah disetujui QA. Admin menentukan alasan dan rencana sampel per kasus, bukan jadwal otomatis. Revalidation berikutnya baru dapat diminta setelah tahap sebelumnya disetujui QA. Uji ulang QA tetap bagian tahap yang sama.</p>
+  <p>Sampel simpanan dicocokkan dengan label sumber. Untuk sampel baru, pastikan sampel fisik benar-benar tersedia di Lab. Catatan ini tidak membuat pengiriman Plant otomatis atau menyalin hasil lama.</p>
+  <form className={styles.search} onSubmit={e=>{e.preventDefault();void load(0,0,search);}}><label>Cari lot, hybrid atau nomor uji sumber<input maxLength={120} value={search} disabled={busy} onChange={e=>setSearch(e.target.value)}/></label><button className="btn" disabled={busy}>Muat Revalidation</button></form>
+  {error&&<p role="alert">{error}</p>}{message&&<p role="status">{message}</p>}
+  {options&&!options.can_authorize&&<p>Persetujuan hanya oleh petugas dengan wewenang Admin Revalidation. Role QA biasa atau Analis tidak otomatis menjadi Admin.</p>}
+  {options&&<><h3>Sumber analisis yang disetujui QA · {options.total}</h3>{options.candidates.map(s=><article className={styles.saved} key={s.run_id}><strong>{s.lot_code} · {s.hybrid}</strong><p>{s.run_code} · {s.method_name}<br/>Sampel: {s.sample_reference} · tahap berikutnya: {s.next_stage<=3?`Revalidation ${s.next_stage}`:'sudah mencapai tahap 3'}</p>{s.blocked_reason?<p>{s.blocked_reason}</p>:options.can_authorize&&canonicalWritesEnabled&&<button className="btn" disabled={busy||!!source||!!selected} onClick={()=>{reset();setSource(s);}}>Beri persetujuan Revalidation {s.next_stage}</button>}</article>)}
+   <div className={styles.actions}><button className="btn" disabled={busy||options.offset===0} onClick={()=>void load(Math.max(0,options.offset-50),page?.offset??0,applied)}>Sumber sebelumnya</button><button className="btn" disabled={busy||!options.has_more} onClick={()=>void load(options.offset+50,page?.offset??0,applied)}>Sumber berikutnya</button></div></>}
+  {page&&<><h3>Persetujuan Revalidation · {page.total}</h3>{page.authorizations.map(a=><article className={styles.saved} key={a.id}><strong>{a.lot_code} · Revalidation {a.stage}</strong><p>{a.source_run_code} · {a.method_name}<br/>{samplePlanLabel(a.sample_plan)} · label sumber: {a.sample_reference}<br/>Disetujui {a.authorizer_name} · {wibInput(a.authorized_at).replace('T',' ')} WIB</p><p>Alasan: {a.reason}<br/>Rujukan sampel: {a.sample_evidence}</p><p>{a.status==='CANCELLED'?`Dibatalkan: ${a.cancellation_reason}`:a.status==='DRAFT_CREATED'?'Catatan sudah disiapkan. Lanjutkan dari daftar catatan rutin.':'Menunggu Analis mencocokkan sampel dan menyiapkan catatan.'}</p>
+   <div className={styles.actions}>{a.can_start&&canonicalWritesEnabled&&<button className="btn" disabled={busy||!!source||!!selected} onClick={()=>{reset();setSelected(a);setMode('START');setReference(a.sample_plan==='RETAINED_LAB'?a.sample_reference:'');setReps(a.method_code==='RET_16C_72H'?4:2);}}>Siapkan catatan Revalidation {a.stage}</button>}{a.can_cancel&&canonicalWritesEnabled&&<button className="btn" disabled={busy||!!source||!!selected} onClick={()=>{reset();setSelected(a);setMode('CANCEL');}}>Batalkan persetujuan yang belum dimulai</button>}</div>
+  </article>)}<div className={styles.actions}><button className="btn" disabled={busy||page.offset===0} onClick={()=>void load(options?.offset??0,Math.max(0,page.offset-50),applied)}>Persetujuan sebelumnya</button><button className="btn" disabled={busy||!page.has_more} onClick={()=>void load(options?.offset??0,page.offset+50,applied)}>Persetujuan berikutnya</button></div></>}
+  {(source||selected)&&<form className={styles.workflow} onSubmit={save}><h3>{source?`Persetujuan Revalidation ${source.next_stage} · ${source.lot_code}`:`${mode==='START'?'Siapkan catatan':'Batalkan persetujuan'} Revalidation ${selected!.stage} · ${selected!.lot_code}`}</h3>
+   <fieldset className={styles.fields} disabled={busy}>{source?<><label>Nama petugas pemberi persetujuan<input required maxLength={120} value={name} onChange={e=>setName(e.target.value)}/></label><label>Rencana sampel<select aria-label="Rencana sampel" required value={plan} onChange={e=>{setPlan(e.target.value);setConfirmed(false);}}><option value="">Pilih rencana sampel</option><option value="RETAINED_LAB">Sampel simpanan Lab</option><option value="NEW_SAMPLE">Sampel baru</option></select></label><label>Alasan Revalidation<textarea aria-label={source?"Alasan Revalidation":"Alasan pembatalan"} required minLength={3} maxLength={1000} value={reason} onChange={e=>setReason(e.target.value)}/></label><label>Rujukan / lokasi / catatan sampel yang diperiksa<textarea aria-label="Rujukan / lokasi / catatan sampel yang diperiksa" required minLength={3} maxLength={1000} value={evidence} onChange={e=>setEvidence(e.target.value)}/></label></>:mode==='START'?<><label>Label sampel fisik<input required readOnly={selected!.sample_plan==='RETAINED_LAB'} maxLength={120} value={reference} onChange={e=>setReference(e.target.value)}/></label><label>Sampel tersedia untuk Revalidation (WIB)<input required type="datetime-local" value={available} onChange={e=>setAvailable(e.target.value)}/></label><label>Jumlah ulangan<select aria-label="Jumlah ulangan" value={reps} onChange={e=>setReps(Number(e.target.value))}>{selected!.method_code==='SAND_25C'?<><option value={2}>2 × 100 benih</option><option value={4}>4 × 100 benih</option></>:<option value={reps}>{reps} × 100 benih</option>}</select></label></>:<label>Alasan pembatalan<textarea aria-label={source?"Alasan Revalidation":"Alasan pembatalan"} required minLength={3} maxLength={1000} value={reason} onChange={e=>setReason(e.target.value)}/></label>}</fieldset>
+   <label className={styles.check}><input type="checkbox" disabled={busy} checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>{source?'Saya sudah memeriksa hasil sumber dan rencana sampel. Ini persetujuan pekerjaan baru, bukan persetujuan hasil mutu.':mode==='START'?'Saya sudah mencocokkan label dan sampel fisik yang tersedia dengan persetujuan Admin. Hitungan dan waktu uji baru belum diisi.':'Persetujuan ini belum dimulai. Alasan pembatalan harus tetap tersimpan.'}</label>
+   <div className={styles.actions}><button className="btn btn-primary" disabled={busy||!confirmed}>{busy?'Menyimpan…':source?'Simpan persetujuan':mode==='START'?'Siapkan catatan kosong':'Simpan pembatalan'}</button><button type="button" className="btn" disabled={busy} onClick={reset}>Batal</button></div>
+  </form>}
+ </details>;
+}

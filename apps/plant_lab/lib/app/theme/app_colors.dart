@@ -20,7 +20,7 @@ class AppColors {
   static const textMutedDark = Color(0xFF94A3B8);
 
   // Common Accents & Statuses
-  static const accent = Color(0xFF10B981); // Emerald Green
+  static const accent = Color(0xFF047857); // Readable with white action labels.
   static const accentDark = Color(0xFF059669);
   static const accentLight = Color(0xFF34D399);
   static const danger = Color(0xFFEF4444);

@@ -1,0 +1,8 @@
+export type MoistureContent = {version:1;sample_reference:string|null;sample_type:string|null;received_at:string|null;measured_at:string|null;instrument:string|null;method:string|null;analyst_name:string|null;note:string|null;readings:(number|null)[]};
+export type MoistureStatus='DRAFT'|'IN_REVIEW'|'RETURNED'|'VERIFIED_RECORD';
+export type MoistureReview={decision:'VERIFY_RECORD'|'RETURN';reviewer_id:string;reviewer_name:string;note:string|null;reviewed_at:string;revision:number};
+export type MoistureDraft = {id:string;lab_site_id:string;lot_id:string;lot_code:string;hybrid:string;stage_code:string;lab_name:string;revision:number;status:MoistureStatus;content:MoistureContent;updated_at:string;created_by:string;can_edit:boolean;entered_count:number;mean_percent:number|null;qa_enabled:false;record_review_enabled?:boolean;can_submit?:boolean;can_review?:boolean;submission_id?:string|null;submitted_revision?:number|null;submitted_at?:string|null;review?:MoistureReview|null};
+export type MoisturePage={drafts:MoistureDraft[];total:number;offset:number;has_more:boolean};
+export function emptyMoistureContent():MoistureContent {return {version:1,sample_reference:null,sample_type:null,received_at:null,measured_at:null,instrument:null,method:null,analyst_name:null,note:null,readings:[null,null,null]};}
+export const moistureNumber=(x:number|null)=>x===null?'Belum lengkap':new Intl.NumberFormat('id-ID',{maximumFractionDigits:6}).format(x);
+export const moistureStatus=(status:MoistureStatus)=>({DRAFT:'Draft',IN_REVIEW:'Menunggu verifikasi QA',RETURNED:'Dikembalikan untuk diperbaiki',VERIFIED_RECORD:'Catatan diverifikasi QA'})[status];

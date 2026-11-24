@@ -17,11 +17,12 @@ Future<void> bootstrap(AppVariant variant) async {
     ),
   );
 
-  try {
-    await dotenv.load(fileName: '.env');
-  } catch (_) {
-    // Compile-time dart-defines remain supported for CI or environments that
-    // intentionally do not package a local .env file.
+  if (!AppConfig.isolatedPlantLab) {
+    try {
+      await dotenv.load(fileName: '.env');
+    } catch (_) {
+      // Compile-time dart-defines remain supported when there is no local file.
+    }
   }
 
   final configurationError = AppConfig.configurationError;

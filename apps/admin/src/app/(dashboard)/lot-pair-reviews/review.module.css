@@ -1,0 +1,62 @@
+.page {
+  display: grid;
+  gap: 1.25rem;
+  width: min(100%, 74rem);
+  margin-inline: auto;
+}
+
+.back { justify-self: start; color: var(--text-secondary); text-underline-offset: .2em; }
+.heading { display: grid; gap: .5rem; }
+.heading h1 { font-size: clamp(1.75rem, 3vw, 2.5rem); }
+.heading p, .muted { color: var(--text-secondary); line-height: 1.55; }
+
+.case {
+  display: grid;
+  gap: 1.25rem;
+  padding: clamp(1rem, 2.6vw, 1.75rem);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--bg-card);
+  box-shadow: var(--shadow-sm);
+  overflow-wrap: anywhere;
+}
+
+.caseHeader { display: flex; flex-wrap: wrap; gap: .75rem 1.25rem; align-items: start; justify-content: space-between; }
+.caseHeader h2 { margin-block: .2rem .3rem; font-size: clamp(1.15rem, 2.4vw, 1.45rem); }
+.label { color: var(--text-secondary); font-weight: 700; font-size: .8125rem; }
+.status { border-radius: 999px; padding: .4rem .7rem; font-size: .8125rem; font-weight: 700; background: var(--bg-base); border: 1px solid var(--border); }
+.status[data-state='PENDING'], .status[data-state='HELD'], .status[data-state='CORRECTION_REQUESTED'] { border-inline-start: 4px solid var(--accent-gold); }
+.status[data-state='APPROVED'], .status[data-state='KEPT_OFFICIAL'] { border-inline-start: 4px solid var(--brand-green); }
+.callout { padding: .8rem 1rem; border-inline-start: 4px solid var(--brand-green); background: var(--bg-base); border-radius: .4rem; line-height: 1.55; }
+.callout small { display: block; color: var(--text-secondary); }
+
+.candidates { display: grid; gap: .65rem; list-style: none; padding: 0; }
+.candidate { display: grid; gap: .4rem; border: 1px solid var(--border); border-radius: .65rem; padding: .8rem .95rem; }
+.candidateCodes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: .6rem 1rem; }
+.candidateCodes dt { color: var(--text-secondary); font-size: .75rem; font-weight: 700; }
+.candidateCodes dd { font-weight: 700; }
+.candidateSource { color: var(--text-secondary); font-size: .875rem; line-height: 1.5; }
+
+.form { min-inline-size: 0; display: grid; gap: .85rem; border: 1px solid var(--border); border-radius: .7rem; padding: .9rem 1rem 1rem; }
+.form legend { padding-inline: .35rem; font-weight: 700; }
+.field { display: grid; gap: .35rem; min-width: 0; font-size: .9rem; font-weight: 600; }
+.field :is(select, textarea, input) {
+  width: 100%;
+  min-height: 44px;
+  padding: .65rem .7rem;
+  border: 1px solid var(--border);
+  border-radius: .5rem;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: 400;
+}
+.field textarea { resize: vertical; }
+.page :is(a, button, select, textarea, input):focus-visible { outline: 2px solid var(--accent-dark); outline-offset: 3px; }
+.submit { justify-self: start; min-height: 44px; }
+.pagination { display: flex; flex-wrap: wrap; gap: 1rem; }
+
+@media (max-width: 560px) {
+  .submit { width: 100%; }
+  .form { padding-inline: .7rem; }
+}

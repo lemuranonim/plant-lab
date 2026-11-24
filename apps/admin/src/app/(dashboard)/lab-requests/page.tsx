@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import styles from '../lab-quality/lab-quality.module.css';
 import { requireVariantAccess } from '@/lib/accessContext';
+import { isolatedPlantLab } from '@/lib/supabase/config';
+import CanonicalLabQueue from './CanonicalLabQueue';
 
 export const revalidate = 0;
 
@@ -18,6 +20,7 @@ type LabRequestRow = {
 };
 
 export default async function LabRequestsPage() {
+  if (isolatedPlantLab) return <CanonicalLabQueue />;
   await requireVariantAccess('LAB');
   const supabase = await createClient();
   const { data: requests, error } = await supabase

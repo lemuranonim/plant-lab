@@ -1,0 +1,7 @@
+export type RevalidationContext={authorization_id:string;stage:number;root_run_id:string;source_run_id:string;source_run_code:string;authorized_at:string;authorized_by:string;authorizer_name:string;reason:string;sample_plan:'RETAINED_LAB'|'NEW_SAMPLE';sample_evidence:string;source_sample_reference:string;is_qa_retest:boolean};
+export type RevalidationSource={run_id:string;run_code:string;lot_id:string;lot_code:string;hybrid:string;method_code:string;method_name:string;sample_reference:string;next_stage:number;blocked_reason:string|null};
+export type RevalidationOptions={lab_site_id:string;can_authorize:boolean;can_start:boolean;candidates:RevalidationSource[];total:number;offset:number;has_more:boolean};
+export type RevalidationAuthorization={id:string;stage:number;source_run_code:string;lot_code:string;method_code:string;method_name:string;sample_reference:string;sample_plan:'RETAINED_LAB'|'NEW_SAMPLE';sample_evidence:string;reason:string;authorizer_name:string;authorized_at:string;status:'AUTHORIZED'|'DRAFT_CREATED'|'CANCELLED';draft_id:string|null;cancellation_reason:string|null;can_start:boolean;can_cancel:boolean};
+export type RevalidationPage={authorizations:RevalidationAuthorization[];total:number;offset:number;has_more:boolean};
+export const samplePlanLabel=(x:string)=>x==='RETAINED_LAB'?'Sampel simpanan Lab':'Sampel baru';
+export function revalidationLabel(context:RevalidationContext|null|undefined){return context?`Revalidation ${context.stage}${context.is_qa_retest?' · uji ulang atas permintaan QA':''}`:null;}

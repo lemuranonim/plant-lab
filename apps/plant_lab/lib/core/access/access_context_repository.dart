@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../config/app_config.dart';
 import 'access_context.dart';
 
 class AccessContextRepository {
@@ -13,7 +14,11 @@ class AccessContextRepository {
       throw const AuthException('Authentication is required.');
     }
 
-    final response = await _supabase.rpc('pl_get_current_access_context');
+    final response = AppConfig.isolatedPlantLab
+        ? await _supabase
+              .schema(AppConfig.isolatedApiSchema)
+              .rpc('get_current_access_context')
+        : await _supabase.rpc('pl_get_current_access_context');
     final json = switch (response) {
       Map<String, dynamic> value => value,
       Map value => Map<String, dynamic>.from(value),

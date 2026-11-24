@@ -1,0 +1,1272 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
+
+import '../../../core/config/app_config.dart';
+import '../../../core/database/supabase_client.dart';
+import 'routine_workflow_card.dart';
+import 'routine_sample_reference.dart';
+import 'routine_form_details.dart';
+import 'routine_form_download.dart';
+import 'lab_revalidation.dart';
+
+typedef RoutineQuery = ({String? site, String search, int offset});
+final routineCatalogProvider = FutureProvider.autoDispose
+    .family<Map<String, dynamic>, RoutineQuery>((ref, query) async {
+      return supabase
+          .schema(AppConfig.isolatedApiSchema)
+          .rpc<Map<String, dynamic>>(
+            'get_routine_lab_options',
+            params: {
+              'p_lab_site_id': query.site,
+              'p_search': query.search,
+              'p_offset': query.offset,
+            },
+          );
+    });
+final routineDraftsProvider = FutureProvider.autoDispose
+    .family<Map<String, dynamic>, String>((ref, site) async {
+      return supabase
+          .schema(AppConfig.isolatedApiSchema)
+          .rpc<Map<String, dynamic>>(
+            'list_routine_lab_drafts',
+            params: {'p_lab_site_id': site},
+          );
+    });
+final routineRecordProvider = FutureProvider.autoDispose
+    .family<Map<String, dynamic>, String>((ref, id) async {
+      return supabase
+          .schema(AppConfig.isolatedApiSchema)
+          .rpc<Map<String, dynamic>>(
+            'get_routine_lab_record',
+            params: {'p_draft_id': id},
+          );
+    });
+final approvedRoutineProvider = FutureProvider.autoDispose
+    .family<Map<String, dynamic>, ({String module, int offset})>((
+      ref,
+      query,
+    ) async {
+      return supabase
+          .schema(AppConfig.isolatedApiSchema)
+          .rpc<Map<String, dynamic>>(
+            'list_approved_routine_lab_results',
+            params: {'p_module': query.module, 'p_offset': query.offset},
+          );
+    });
+
+const routineCountLabels = {
+  'first_normal': 'Normal first count',
+  'final_normal': 'Normal final count',
+  'abnormal': 'Abnormal',
+  'fresh': 'Fresh',
+  'hard': 'Hard',
+  'dead': 'Mati',
+  'radicle_at_least_2mm': 'Radikula minimal 2 mm',
+};
+
+class RoutineWorkflowScreen extends ConsumerWidget {
+  const RoutineWorkflowScreen({super.key, required this.draftId});
+  final String draftId;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => Scaffold(
+    appBar: AppBar(
+      title: const Text('Hasil & pemeriksaan rutin'),
+      actions: [
+        IconButton(
+          tooltip: 'Muat ulang catatan',
+          onPressed: () => ref.invalidate(routineRecordProvider(draftId)),
+          icon: const Icon(Icons.refresh),
+        ),
+      ],
+    ),
+    body: ref
+        .watch(routineRecordProvider(draftId))
+        .when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, _) => Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: TextButton(
+                onPressed: () => ref.invalidate(routineRecordProvider(draftId)),
+                child: const Text(
+                  'Catatan belum dimuat. Periksa akses/koneksi lalu coba lagi.',
+                ),
+              ),
+            ),
+          ),
+          data: (record) => ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Text(
+                '${record['lot_code']} · ${record['hybrid']} · ${record['stage_code']}',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              Text(record['method_name'] as String),
+              RoutineFormDownload(
+                record: record,
+                formName: record['method_code'] == 'RET_16C_72H' ? 'RET' : null,
+                load: record['method_code'] == 'RET_16C_72H'
+                    ? fetchRetForm
+                    : fetchRoutineForm,
+              ),
+              ExpansionTile(
+                title: const Text('Isian sampel & waktu nyata'),
+                childrenPadding: const EdgeInsets.all(12),
+                expandedCrossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Referensi sampel: ${record['content']['sample_reference'] ?? 'belum dicatat'}',
+                  ),
+                  Text(
+                    'Sampel tersedia: ${routineWib(record['content']['received_at'] as String?)}',
+                  ),
+                  Text(
+                    'Mulai: ${routineWib(record['content']['started_at'] as String?)}',
+                  ),
+                  Text(
+                    'Final: ${routineWib(record['content']['final_at'] as String?)}',
+                  ),
+                  Text(
+                    'Catatan: ${record['content']['note'] ?? 'belum dicatat'}',
+                  ),
+                  if (record['content']['form'] != null) ...[
+                    Text(
+                      'Tanaman / spesies: ${record['content']['form']['crop_species'] ?? 'belum dicatat'}',
+                    ),
+                    Text(
+                      'Pelaksana: ${record['content']['form']['analyst_name'] ?? 'belum dicatat'}',
+                    ),
+                    Text(
+                      'Suhu pada form: ${record['content']['form']['temperature_text'] ?? 'belum dicatat'} °C',
+                    ),
+                    Text(
+                      'Tanam: ${routineWib(record['content']['form']['planted_at'] as String?)}',
+                    ),
+                    Text(
+                      'First count: ${routineWib(record['content']['form']['first_count_at'] as String?)}',
+                    ),
+                    for (final entry
+                        in (record['content']['form']['annotations'] as List)
+                            .asMap()
+                            .entries)
+                      Text(
+                        'Subulangan ${entry.key ~/ 2 + 1}${entry.key.isOdd ? 'b' : 'a'}: jenis abnormal ${entry.value['abnormal_kind'] ?? 'belum dicatat'} · catatan ${entry.value['remarks'] ?? 'belum dicatat'}',
+                      ),
+                  ],
+                  for (final entry
+                      in (record['content']['observations'] as List)
+                          .asMap()
+                          .entries)
+                    Text(
+                      '${routineObservationLabel(entry.key, record['method_code'] == 'RET_16C_72H')}: ${(entry.value as Map).entries.map((e) => '${routineCountLabels[e.key] ?? e.key}: ${e.value ?? 'belum dicatat'}').join(', ')}',
+                    ),
+                ],
+              ),
+              if (record['can_edit'] == true &&
+                  AppConfig.canonicalWritesEnabled)
+                OutlinedButton(
+                  onPressed: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute<bool>(
+                        builder: (_) => RoutineDraftEditor(
+                          record: record,
+                          labSiteId: record['lab_site_id'] as String,
+                          saveDraft: (args) => supabase
+                              .schema(AppConfig.isolatedApiSchema)
+                              .rpc<Map<String, dynamic>>(
+                                'save_routine_lab_draft',
+                                params: args,
+                              ),
+                        ),
+                      ),
+                    );
+                    ref.invalidate(routineRecordProvider(draftId));
+                    ref.invalidate(
+                      routineDraftsProvider(record['lab_site_id'] as String),
+                    );
+                  },
+                  child: const Text('Lanjut isi draft'),
+                ),
+              RoutineWorkflowCard(
+                record: record,
+                canWrite: AppConfig.canonicalWritesEnabled,
+                checkDraft: () => supabase
+                    .schema(AppConfig.isolatedApiSchema)
+                    .rpc<Map<String, dynamic>>(
+                      'check_routine_lab_draft',
+                      params: {
+                        'p_draft_id': draftId,
+                        'p_expected_revision': record['revision'],
+                      },
+                    ),
+                sendCommand: (name, args) => supabase
+                    .schema(AppConfig.isolatedApiSchema)
+                    .rpc<Map<String, dynamic>>(name, params: args),
+                onChanged: (result) async {
+                  ref.invalidate(routineRecordProvider(draftId));
+                  ref.invalidate(
+                    routineDraftsProvider(record['lab_site_id'] as String),
+                  );
+                  final nextId = result['draft_id'] as String?;
+                  if (nextId != null && nextId != draftId && context.mounted) {
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute<void>(
+                        builder: (_) => RoutineWorkflowScreen(draftId: nextId),
+                      ),
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+  );
+}
+
+class ApprovedRoutineResultsPanel extends ConsumerStatefulWidget {
+  const ApprovedRoutineResultsPanel({super.key, required this.module});
+  final String module;
+  @override
+  ConsumerState<ApprovedRoutineResultsPanel> createState() =>
+      _ApprovedRoutineResultsPanelState();
+}
+
+class _ApprovedRoutineResultsPanelState
+    extends ConsumerState<ApprovedRoutineResultsPanel> {
+  bool opened = false;
+  int offset = 0;
+  @override
+  Widget build(BuildContext context) {
+    final query = (module: widget.module, offset: offset);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Hasil rutin Lab disetujui QA',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const Text(
+              'Terpisah dari jumlah request Plant. Hanya hasil dalam cakupan Anda yang sudah disetujui ditampilkan. Bukan pelepasan lot.',
+            ),
+            OutlinedButton(
+              onPressed: () {
+                setState(() => opened = true);
+                ref.invalidate(approvedRoutineProvider(query));
+              },
+              child: const Text('Muat hasil rutin Lab'),
+            ),
+            if (opened)
+              ref
+                  .watch(approvedRoutineProvider(query))
+                  .when(
+                    loading: () => const LinearProgressIndicator(),
+                    error: (_, _) => const Text(
+                      'Hasil belum dimuat. Periksa koneksi; tidak dianggap kosong.',
+                    ),
+                    data: (page) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          '${page['total']} hasil disetujui dalam cakupan akun Anda.',
+                        ),
+                        for (final row
+                            in (page['results'] as List)
+                                .cast<Map<String, dynamic>>())
+                          if (row['status'] == 'APPROVED')
+                            ExpansionTile(
+                              title: Text(
+                                '${row['lot_code']} · ${row['method_name']}',
+                              ),
+                              children: [
+                                Text(
+                                  '${row['hybrid']} · ${row['stage_code']} · ${row['workflow']['run_code']}',
+                                ),
+                                RoutineSummaryCard(
+                                  summary:
+                                      row['workflow']['summary']
+                                          as Map<String, dynamic>,
+                                ),
+                                Text(
+                                  'Catatan QA: ${row['workflow']['review_reason']}',
+                                ),
+                                const Text(
+                                  'Unduh catatan hasil melalui web Plant, bagian Hasil rutin Lab yang disetujui QA.',
+                                ),
+                              ],
+                            ),
+                        Wrap(
+                          spacing: 12,
+                          children: [
+                            OutlinedButton(
+                              onPressed: offset == 0
+                                  ? null
+                                  : () => setState(() => offset -= 50),
+                              child: const Text('Hasil sebelumnya'),
+                            ),
+                            OutlinedButton(
+                              onPressed: page['has_more'] == true
+                                  ? () => setState(() => offset += 50)
+                                  : null,
+                              child: const Text('Hasil berikutnya'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String routineObservationLabel(int index, bool ret) => ret
+    ? 'Ulangan ${index + 1} · 100 benih'
+    : 'Ulangan ${index ~/ 2 + 1}${index.isOdd ? 'b' : 'a'} · 50 benih';
+
+Map<String, dynamic> emptyRoutineContent(String method, int replicates) => {
+  'sample_reference': null,
+  'received_at': null,
+  'started_at': null,
+  'final_at': null,
+  'note': null,
+  'replicate_count': replicates,
+  'observations': List.generate(
+    method == 'RET_16C_72H' ? replicates : replicates * 2,
+    (_) => <String, dynamic>{
+      for (final key
+          in method == 'RET_16C_72H'
+              ? ['radicle_at_least_2mm']
+              : routineCountLabels.keys.where(
+                  (k) => k != 'radicle_at_least_2mm',
+                ))
+        key: null,
+    },
+  ),
+};
+String routineWib(String? value) {
+  if (value == null || value.isEmpty) return 'Belum diisi';
+  final date = DateTime.parse(value).toUtc().add(const Duration(hours: 7));
+  return '${date.toIso8601String().substring(0, 16).replaceFirst('T', ' ')} WIB';
+}
+
+class RoutineLabScreen extends ConsumerStatefulWidget {
+  const RoutineLabScreen({super.key});
+  @override
+  ConsumerState<RoutineLabScreen> createState() => _RoutineLabScreenState();
+}
+
+class _RoutineLabScreenState extends ConsumerState<RoutineLabScreen> {
+  final search = TextEditingController();
+  String? site;
+  String term = '';
+  String? method;
+  int offset = 0;
+  @override
+  void dispose() {
+    search.dispose();
+    super.dispose();
+  }
+
+  Future<void> openEditor(
+    Map<String, dynamic> catalog,
+    Map<String, dynamic> record,
+  ) async {
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => RoutineDraftEditor(
+          record: {
+            ...record,
+            'can_edit':
+                record['can_edit'] == true && AppConfig.canonicalWritesEnabled,
+          },
+          labSiteId: catalog['selected_lab_site_id'] as String,
+          saveDraft: (args) => supabase
+              .schema(AppConfig.isolatedApiSchema)
+              .rpc<Map<String, dynamic>>(
+                'save_routine_lab_draft',
+                params: args,
+              ),
+        ),
+      ),
+    );
+    if (mounted) {
+      ref.invalidate(
+        routineDraftsProvider(catalog['selected_lab_site_id'] as String),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = (site: site, search: term, offset: offset);
+    return Scaffold(
+      appBar: AppBar(title: const Text('Catatan uji rutin')),
+      body: ref
+          .watch(routineCatalogProvider(query))
+          .when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (_, _) => Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Catatan rutin belum bisa dimuat. Periksa koneksi dan penugasan Lab. Antrean request Plant tetap tersedia.',
+                    ),
+                    TextButton(
+                      onPressed: () =>
+                          ref.invalidate(routineCatalogProvider(query)),
+                      child: const Text('Coba lagi'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            data: (catalog) {
+              final selectedSite = catalog['selected_lab_site_id'] as String;
+              final methods = (catalog['methods'] as List)
+                  .cast<Map<String, dynamic>>();
+              final selectedMethod =
+                  method ??
+                  (methods
+                              .where((m) => m['method_code'] == 'SAND_25C')
+                              .firstOrNull ??
+                          methods.first)['method_code']
+                      as String;
+              final lots = (catalog['lots'] as List)
+                  .cast<Map<String, dynamic>>();
+              return ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  const _RoutineNotice(),
+                  const SizedBox(height: 20),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedSite,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Lab tempat pengujian',
+                    ),
+                    items: (catalog['lab_sites'] as List)
+                        .cast<Map<String, dynamic>>()
+                        .map(
+                          (s) => DropdownMenuItem(
+                            value: s['id'] as String,
+                            child: Text(
+                              s['site_name'] as String,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) => setState(() {
+                      site = value;
+                      offset = 0;
+                    }),
+                  ),
+                  const SizedBox(height: 16),
+                  LabRevalidationPanel(
+                    key: ValueKey('revalidation-$selectedSite'),
+                    labSiteId: selectedSite,
+                    onCreated: () =>
+                        ref.invalidate(routineDraftsProvider(selectedSite)),
+                  ),
+                  Text(
+                    'Catatan tersimpan',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  ref
+                      .watch(routineDraftsProvider(selectedSite))
+                      .when(
+                        loading: () => const LinearProgressIndicator(),
+                        error: (_, _) => TextButton(
+                          onPressed: () => ref.invalidate(
+                            routineDraftsProvider(selectedSite),
+                          ),
+                          child: const Text('Daftar belum dimuat. Coba lagi'),
+                        ),
+                        data: (page) {
+                          final drafts = (page['drafts'] as List)
+                              .cast<Map<String, dynamic>>();
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                '${page['total']} catatan rutin. Terpisah dari jumlah request Plant.',
+                              ),
+                              if (drafts.isEmpty)
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 16),
+                                  child: Text('Belum ada draft di Lab ini.'),
+                                ),
+                              for (final draft in drafts)
+                                Card(
+                                  child: Column(
+                                    children: [
+                                      ListTile(
+                                        title: Text(
+                                          '${draft['lot_code']} · ${routineWorkflowStatus(draft['status'] as String)}',
+                                        ),
+                                        subtitle: Text(
+                                          '${draft['method_name']} · ${revalidationPurpose(draft)}\nRevisi ${draft['revision']} · ${routineWib(draft['updated_at'] as String)}',
+                                        ),
+                                        isThreeLine: true,
+                                        onTap: () async {
+                                          if (draft['workflow'] == null) {
+                                            await openEditor(catalog, draft);
+                                          } else {
+                                            await Navigator.of(context).push(
+                                              MaterialPageRoute<void>(
+                                                builder: (_) =>
+                                                    RoutineWorkflowScreen(
+                                                      draftId:
+                                                          draft['id'] as String,
+                                                    ),
+                                              ),
+                                            );
+                                            ref.invalidate(
+                                              routineDraftsProvider(
+                                                selectedSite,
+                                              ),
+                                            );
+                                          }
+                                        },
+                                        trailing: const Icon(
+                                          Icons.chevron_right,
+                                        ),
+                                      ),
+                                      TextButton(
+                                        onPressed: () async {
+                                          await Navigator.of(context).push(
+                                            MaterialPageRoute<void>(
+                                              builder: (_) =>
+                                                  RoutineWorkflowScreen(
+                                                    draftId:
+                                                        draft['id'] as String,
+                                                  ),
+                                            ),
+                                          );
+                                          ref.invalidate(
+                                            routineDraftsProvider(selectedSite),
+                                          );
+                                        },
+                                        child: Text(
+                                          draft['workflow'] == null
+                                              ? 'Periksa / kirim ke QA'
+                                              : 'Lihat hasil & pemeriksaan',
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              if (page['has_more'] == true)
+                                const Text(
+                                  'Daftar APK menampilkan 50 draft terbaru. Halaman web menyediakan halaman berikutnya.',
+                                ),
+                              TextButton(
+                                onPressed: () => ref.invalidate(
+                                  routineDraftsProvider(selectedSite),
+                                ),
+                                child: const Text('Muat ulang draft'),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                  const Divider(height: 32),
+                  Text(
+                    'Catatan baru',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  if (catalog['can_write'] != true ||
+                      !AppConfig.canonicalWritesEnabled)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text(
+                        'Akun QA dapat membaca draft. Pencatatan dilakukan Analis, bukan memakai akun QA.',
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedMethod,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Metode untuk catatan baru',
+                    ),
+                    items: methods
+                        .map(
+                          (m) => DropdownMenuItem(
+                            value: m['method_code'] as String,
+                            child: Text(
+                              m['method_name'] as String,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged:
+                        catalog['can_write'] == true &&
+                            AppConfig.canonicalWritesEnabled
+                        ? (value) => setState(() => method = value)
+                        : null,
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: search,
+                    maxLength: 100,
+                    decoration: const InputDecoration(
+                      labelText: 'Cari kode lot atau hybrid',
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                    onSubmitted: (_) => setState(() {
+                      term = search.text.trim();
+                      offset = 0;
+                    }),
+                  ),
+                  OutlinedButton(
+                    onPressed: () => setState(() {
+                      term = search.text.trim();
+                      offset = 0;
+                    }),
+                    child: const Text('Cari lot'),
+                  ),
+                  Text(
+                    '${catalog['total']} lot sesuai pencarian. Pilih kode yang benar, bukan lot pengganti.',
+                  ),
+                  if (lots.isEmpty)
+                    const Text(
+                      'Lot tidak ditemukan. Periksa kode atau hubungi petugas master Plant.',
+                    ),
+                  for (final lot in lots)
+                    Card(
+                      child: ListTile(
+                        title: Text(lot['lot_code'] as String),
+                        subtitle: Text(
+                          '${lot['hybrid']} · ${lot['stage_code']}\n${lot['plant_site']}',
+                        ),
+                        isThreeLine: true,
+                        trailing: const Icon(Icons.add),
+                        onTap:
+                            catalog['can_write'] != true ||
+                                !AppConfig.canonicalWritesEnabled
+                            ? null
+                            : () {
+                                final selected = methods.firstWhere(
+                                  (m) => m['method_code'] == selectedMethod,
+                                );
+                                openEditor(catalog, {
+                                  ...lot,
+                                  'id': const Uuid().v4(),
+                                  'lot_id': lot['id'],
+                                  'revision': 0,
+                                  'method_code': selectedMethod,
+                                  'method_name': selected['method_name'],
+                                  'replicate_counts':
+                                      selected['replicate_counts'] ??
+                                      [selected['replicate_count']],
+                                  'can_edit': true,
+                                  'content': emptyRoutineContent(
+                                    selectedMethod,
+                                    selected['replicate_count'] as int,
+                                  ),
+                                });
+                              },
+                      ),
+                    ),
+                  Wrap(
+                    spacing: 12,
+                    children: [
+                      OutlinedButton(
+                        onPressed: offset == 0
+                            ? null
+                            : () => setState(() => offset -= 50),
+                        child: const Text('Sebelumnya'),
+                      ),
+                      OutlinedButton(
+                        onPressed: catalog['has_more'] != true
+                            ? null
+                            : () => setState(() => offset += 50),
+                        child: const Text('Berikutnya'),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
+    );
+  }
+}
+
+class _RoutineNotice extends StatelessWidget {
+  const _RoutineNotice();
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Mulai dari draft, lalu diperiksa QA',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Catat pengujian rutin tanpa request atau pengiriman Plant. Isian boleh dicicil. Kosong berarti belum dicatat, bukan nol. Setelah lengkap, periksa revisi tersimpan lalu kirim ke QA. Revisi yang dikirim dikunci.',
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'First count dan final count disimpan terpisah, tidak dijumlahkan kembali. Fresh dan hard bukan benih mati. QA independen memeriksa hasil; persetujuan analisis bukan pelepasan lot.',
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class RoutineDraftEditor extends StatefulWidget {
+  const RoutineDraftEditor({
+    super.key,
+    required this.record,
+    required this.labSiteId,
+    required this.saveDraft,
+    this.loadSampleReferences,
+  });
+  final Map<String, dynamic> record;
+  final String labSiteId;
+  final Future<Map<String, dynamic>> Function(Map<String, dynamic>) saveDraft;
+  final RoutineReferenceLoader? loadSampleReferences;
+  @override
+  State<RoutineDraftEditor> createState() => _RoutineDraftEditorState();
+}
+
+class _RoutineDraftEditorState extends State<RoutineDraftEditor> {
+  final form = GlobalKey<FormState>();
+  late final Map<String, dynamic> content;
+  late final TextEditingController sample;
+  late final TextEditingController note;
+  late final List<Map<String, TextEditingController>> counts;
+  late int revision;
+  int replicateChoiceRevision = 0;
+  bool busy = false;
+  bool saved = false;
+  bool allowExit = false;
+  String? error;
+  String? message;
+  String? action;
+  Map<String, dynamic>? lastArgs;
+  bool get ret => widget.record['method_code'] == 'RET_16C_72H';
+  bool get editable => widget.record['can_edit'] == true;
+  @override
+  void initState() {
+    super.initState();
+    revision = widget.record['revision'] as int;
+    content = Map<String, dynamic>.from(widget.record['content'] as Map);
+    if (!ret && revision == 0 && content['form'] == null) {
+      content['form'] = emptyRoutineForm(
+        widget.record['method_code'] as String,
+        (content['observations'] as List).length,
+      );
+    }
+    sample = TextEditingController(
+      text: content['sample_reference'] as String? ?? '',
+    );
+    note = TextEditingController(text: content['note'] as String? ?? '');
+    counts = (content['observations'] as List)
+        .map(
+          (row) => {
+            for (final key
+                in ret
+                    ? ['radicle_at_least_2mm']
+                    : routineCountLabels.keys.where(
+                        (k) => k != 'radicle_at_least_2mm',
+                      ))
+              key: TextEditingController(
+                text: (row as Map)[key]?.toString() ?? '',
+              ),
+          },
+        )
+        .toList();
+  }
+
+  @override
+  void dispose() {
+    sample.dispose();
+    note.dispose();
+    for (final row in counts) {
+      for (final c in row.values) {
+        c.dispose();
+      }
+    }
+    super.dispose();
+  }
+
+  Future<void> pickTime(String key) async {
+    final initial = content[key] == null
+        ? DateTime.now().toUtc().add(const Duration(hours: 7))
+        : DateTime.parse(
+            content[key] as String,
+          ).toUtc().add(const Duration(hours: 7));
+    final day = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now().toUtc().add(const Duration(hours: 7)),
+    );
+    if (day == null || !mounted) return;
+    final clock = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: initial.hour, minute: initial.minute),
+    );
+    if (clock == null || !mounted) return;
+    setState(
+      () => content[key] = DateTime.utc(
+        day.year,
+        day.month,
+        day.day,
+        clock.hour,
+        clock.minute,
+      ).subtract(const Duration(hours: 7)).toIso8601String(),
+    );
+  }
+
+  Future<void> changeReplicates(int n) async {
+    if (busy || revision > 0 || !editable || n == content['replicate_count']) {
+      return;
+    }
+    final notes = (content['form'] as Map?)?['annotations'] as List? ?? [];
+    if (counts.any((row) => row.values.any((c) => c.text.isNotEmpty)) ||
+        notes.any(
+          (row) => (row as Map).values.any(
+            (v) => v != null && v.toString().trim().isNotEmpty,
+          ),
+        )) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Ganti jumlah ulangan?'),
+          content: const Text(
+            'Hitungan dan catatan tiap subulangan yang belum disimpan akan dikosongkan. Label sampel dan waktu tetap.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Tetap rancangan lama'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Ganti dan kosongkan hitungan'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      if (confirmed != true) {
+        setState(() => replicateChoiceRevision++);
+        return;
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      for (final row in counts) {
+        for (final c in row.values) {
+          c.dispose();
+        }
+      }
+      counts.clear();
+      final blank = emptyRoutineContent(
+        widget.record['method_code'] as String,
+        n,
+      );
+      content['replicate_count'] = n;
+      content['observations'] = blank['observations'];
+      if (content['form'] != null) {
+        content['form'] = {
+          ...Map<String, dynamic>.from(content['form'] as Map),
+          'annotations': emptyRoutineForm(
+            widget.record['method_code'] as String,
+            (blank['observations'] as List).length,
+          )['annotations'],
+        };
+      }
+      replicateChoiceRevision++;
+      for (final row in blank['observations'] as List) {
+        counts.add({
+          for (final key in (row as Map).keys)
+            key as String: TextEditingController(),
+        });
+      }
+      action = null;
+      lastArgs = null;
+      message = null;
+      error = null;
+    });
+  }
+
+  Future<void> save() async {
+    if (busy || !editable || !form.currentState!.validate()) return;
+    for (final row in counts) {
+      for (final controller in row.values) {
+        final text = controller.text;
+        if (text.isNotEmpty) {
+          final value = int.tryParse(text);
+          if (value == null || value < 0 || value > (ret ? 100 : 50)) {
+            setState(
+              () => error =
+                  'Periksa semua ulangan. Jumlah benih harus bilangan bulat 0–${ret ? 100 : 50}.',
+            );
+            return;
+          }
+        }
+      }
+    }
+    final snapshot = {
+      ...content,
+      'sample_reference': sample.text.trim().isEmpty
+          ? null
+          : sample.text.trim(),
+      'note': note.text.trim().isEmpty ? null : note.text.trim(),
+      'observations': [
+        for (final row in counts)
+          {
+            for (final e in row.entries)
+              e.key: e.value.text.isEmpty ? null : int.parse(e.value.text),
+          },
+      ],
+    };
+    final args = <String, dynamic>{
+      'p_draft_id': widget.record['id'],
+      'p_expected_revision': revision,
+      'p_lab_site_id': widget.labSiteId,
+      'p_lot_id': widget.record['lot_id'],
+      'p_method_code': widget.record['method_code'],
+      'p_content': snapshot,
+    };
+    // Stable action for unchanged retries; optimistic revision guards uncertain saves.
+    if (lastArgs.toString() != args.toString()) {
+      action = const Uuid().v4();
+      lastArgs = args;
+    }
+    setState(() {
+      busy = true;
+      error = null;
+      message = null;
+    });
+    try {
+      final result = await widget.saveDraft({...args, 'p_action_id': action});
+      if (!mounted) return;
+      setState(() {
+        revision = result['revision'] as int;
+        saved = true;
+        action = null;
+        lastArgs = null;
+        message =
+            'Draft tersimpan di server · revisi $revision. Belum dikirim ke QA.';
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => error =
+              'Belum dapat memastikan penyimpanan. Cek jumlah benih, urutan waktu dan koneksi. Coba simpan dengan isian sama. Jika draft sudah berubah, buka versi terbaru, jangan membuat catatan ganda.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> leave() async {
+    if (busy) return;
+    if (editable) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Tutup isian?'),
+          content: const Text(
+            'Perubahan sejak penyimpanan terakhir tidak ikut disimpan.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Lanjut isi'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Tutup'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    }
+    setState(() => allowExit = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) Navigator.pop(context, saved);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => PopScope(
+    canPop: !busy && (allowExit || !editable),
+    onPopInvokedWithResult: (didPop, _) {
+      if (!didPop && !busy) {
+        leave();
+      }
+    },
+    child: Scaffold(
+      appBar: AppBar(
+        title: const Text('Draft pengujian rutin'),
+        leading: IconButton(
+          tooltip: 'Kembali',
+          icon: const Icon(Icons.arrow_back),
+          onPressed: busy ? null : leave,
+        ),
+      ),
+      body: Form(
+        key: form,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text(
+              '${widget.record['lot_code']} · ${widget.record['hybrid']} · ${widget.record['stage_code']}',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            Text('${widget.record['method_name']} · Revisi $revision'),
+            RevalidationContextCard(record: widget.record),
+            const SizedBox(height: 12),
+            const _RoutineNotice(),
+            if (error != null)
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(
+                  error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
+            if (message != null)
+              Padding(padding: const EdgeInsets.all(12), child: Text(message!)),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<int>(
+              key: ValueKey(
+                'routine-replicates-${content['replicate_count']}-$replicateChoiceRevision',
+              ),
+              initialValue: content['replicate_count'] as int,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Jumlah ulangan'),
+              items:
+                  (widget.record['replicate_counts'] as List? ??
+                          [content['replicate_count']])
+                      .map(
+                        (n) => DropdownMenuItem<int>(
+                          value: n as int,
+                          child: Text('$n × 100 benih'),
+                        ),
+                      )
+                      .toList(),
+              onChanged: editable && !busy && revision == 0
+                  ? (n) {
+                      if (n != null) changeReplicates(n);
+                    }
+                  : null,
+            ),
+            const Text(
+              'Pilih sebelum simpan pertama; setelah disimpan jumlah ulangan dikunci. Germinasi2×100 atau4×100, Vigor biasa2×100, RET4×100.',
+            ),
+            const SizedBox(height: 16),
+            RoutineSampleReferenceField(
+              controller: sample,
+              enabled: editable && !busy,
+              locked:
+                  widget.record['retest_of_run_id'] != null ||
+                  (widget.record['revalidation'] as Map?)?['sample_plan'] ==
+                      'RETAINED_LAB',
+              loadReferences:
+                  widget.loadSampleReferences ??
+                  (search, offset) => supabase
+                      .schema(AppConfig.isolatedApiSchema)
+                      .rpc<Map<String, dynamic>>(
+                        'list_routine_sample_references',
+                        params: {
+                          'p_lab_site_id': widget.labSiteId,
+                          'p_lot_id': widget.record['lot_id'],
+                          'p_search': search,
+                          'p_offset': offset,
+                        },
+                      ),
+            ),
+            for (final entry in {
+              'received_at': 'Sampel tersedia di Lab',
+              'started_at': ret
+                  ? 'Mulai ditempatkan pada 16 °C'
+                  : 'Mulai uji / tanam',
+              'final_at': 'Pengamatan final',
+            }.entries)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text('${entry.value} (WIB)'),
+                subtitle: Text(routineWib(content[entry.key] as String?)),
+                onTap:
+                    editable &&
+                        !busy &&
+                        !(widget.record['retest_of_run_id'] != null &&
+                            entry.key == 'received_at')
+                    ? () => pickTime(entry.key)
+                    : null,
+                trailing:
+                    editable &&
+                        !busy &&
+                        !(widget.record['retest_of_run_id'] != null &&
+                            entry.key == 'received_at')
+                    ? IconButton(
+                        tooltip: 'Kosongkan waktu',
+                        icon: const Icon(Icons.clear),
+                        onPressed: () =>
+                            setState(() => content[entry.key] = null),
+                      )
+                    : null,
+              ),
+            const SizedBox(height: 12),
+            if (!ret && content['form'] != null)
+              RoutineFormDetailsFields(
+                value: Map<String, dynamic>.from(content['form'] as Map),
+                enabled: editable && !busy,
+                germination: widget.record['method_code'] == 'SAND_25C',
+                retest: widget.record['retest_of_run_id'] != null,
+                onChanged: (value) => setState(() => content['form'] = value),
+              )
+            else if (!ret && editable)
+              TextButton(
+                onPressed: busy
+                    ? null
+                    : () => setState(
+                        () => content['form'] = emptyRoutineForm(
+                          widget.record['method_code'] as String,
+                          counts.length,
+                        ),
+                      ),
+                child: const Text('Lengkapi rincian form cetak'),
+              ),
+            TextFormField(
+              controller: note,
+              enabled: editable && !busy,
+              maxLength: 1000,
+              minLines: 2,
+              maxLines: 5,
+              decoration: const InputDecoration(
+                labelText: 'Catatan kondisi, alat, atau pekerjaan',
+              ),
+            ),
+            Text(
+              ret
+                  ? '4 × 100 benih. Radikula minimal 2 mm, bukan kecambah normal. Minimal72jam sejak penempatan16°C diperiksa sebelum pengiriman ke QA.'
+                  : '${content['replicate_count']} × 100 benih. Masing-masing a/b berisi 50 benih. First count tidak dijumlahkan ke kategori final.',
+            ),
+            if (widget.record['retest_of_run_id'] != null)
+              const Text(
+                'Uji ulang memakai sampel yang sama. Referensi dan penerimaan awal tetap; isi waktu mulai baru sesudah keputusan QA.',
+              ),
+            for (var i = 0; i < counts.length; i++)
+              Card(
+                child: ExpansionTile(
+                  initiallyExpanded: i == 0,
+                  title: Text(routineObservationLabel(i, ret)),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          for (final entry in counts[i].entries)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 14),
+                              child: TextFormField(
+                                controller: entry.value,
+                                enabled: editable && !busy,
+                                decoration: InputDecoration(
+                                  labelText: routineCountLabels[entry.key],
+                                  helperText: 'Kosong jika belum dicatat',
+                                ),
+                                keyboardType: TextInputType.number,
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return null;
+                                  }
+                                  final n = int.tryParse(value);
+                                  return n == null ||
+                                          n < 0 ||
+                                          n > (ret ? 100 : 50)
+                                      ? 'Isi bilangan bulat 0–${ret ? 100 : 50}'
+                                      : null;
+                                },
+                              ),
+                            ),
+                          if (!ret && content['form'] != null)
+                            for (final key in ['abnormal_kind', 'remarks'])
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 14),
+                                child: TextFormField(
+                                  key: ValueKey(
+                                    'routine-form-$key-$i-$replicateChoiceRevision',
+                                  ),
+                                  initialValue:
+                                      ((content['form'] as Map)['annotations']
+                                              as List)[i][key]
+                                          as String?,
+                                  enabled: editable && !busy,
+                                  maxLength: 300,
+                                  minLines: 1,
+                                  maxLines: 4,
+                                  decoration: InputDecoration(
+                                    labelText: key == 'abnormal_kind'
+                                        ? 'Jenis abnormal'
+                                        : 'Catatan subulangan',
+                                  ),
+                                  onChanged: (text) => setState(() {
+                                    final details = Map<String, dynamic>.from(
+                                      content['form'] as Map,
+                                    );
+                                    final notes = [
+                                      for (final row
+                                          in details['annotations'] as List)
+                                        Map<String, dynamic>.from(row as Map),
+                                    ];
+                                    notes[i][key] = text.trim().isEmpty
+                                        ? null
+                                        : text;
+                                    content['form'] = {
+                                      ...details,
+                                      'annotations': notes,
+                                    };
+                                  }),
+                                ),
+                              ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            if (editable)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                child: FilledButton(
+                  key: const ValueKey('routine-save-draft'),
+                  onPressed: busy ? null : save,
+                  child: Text(busy ? 'Menyimpan…' : 'Simpan draft'),
+                ),
+              ),
+            const Text(
+              'Simpan terlebih dahulu. PDF atau Excel per form dapat diunduh dari halaman Hasil & pemeriksaan. Draft bukan sertifikat hasil uji.',
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}

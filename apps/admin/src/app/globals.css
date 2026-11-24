@@ -156,6 +156,7 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Buttons - Refined */
 .btn {
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -177,13 +178,13 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .btn-primary {
-  background-color: var(--brand-green);
+  background-color: #047857;
   color: #ffffff;
   box-shadow: var(--shadow-sm);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: var(--brand-green-dark);
+  background-color: #065f46;
 }
 
 .btn-outline {

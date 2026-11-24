@@ -1,0 +1,4 @@
+.timings {display:grid;grid-template-columns:minmax(0,1fr);gap:0;margin-block:16px;line-height:1.6;overflow-wrap:anywhere}
+.timings dt {padding-top:16px;border-top:1px solid var(--border);font-size:.85rem;color:var(--text-secondary)}
+.timings dd {margin:4px 0 16px;font-weight:600}
+.page a {color:var(--accent);font-weight:600;line-height:1.6}

@@ -50,6 +50,19 @@ flutter build apk --release --flavor plant --target lib/main_plant.dart
 flutter build apk --release --flavor lab --target lib/main_lab.dart
 ```
 
+For the hosted read-only pilot, use the existing official release signing and
+add `--dart-define=PLANT_LAB_HOSTED_PILOT=true` to each release build, together
+with the exact HTTPS Advanta-CC `SUPABASE_URL` and its
+`SUPABASE_PUBLISHABLE_KEY` (`sb_publishable_…`). Do not combine it with
+`PLANT_LAB_LOCAL_PREVIEW`. The pilot does not load legacy routes, enable writes,
+or fall back to another API schema.
+
+For authorized real-data UAC, also supply
+`--dart-define=PLANT_LAB_HOSTED_WRITES_ENABLED=true`. This enables the canonical
+request/sample/Germination workflow in release builds, not legacy write routes.
+Choose only work that will actually be performed on a physical source lot.
+Historical Excel observations are not automatically submitted or approved.
+
 The generated `.env` and the admin source file are both ignored by Git. Only a
 modern `sb_publishable_` client key is accepted; never place a service-role key in
 either mobile configuration. Operational writes remain disabled by default.

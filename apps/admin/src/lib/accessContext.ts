@@ -2,6 +2,7 @@ import { cache } from 'react';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { getAppVariant, type AppVariantCode } from '@/lib/appVariant';
+import { isolatedApiSchema, isolatedPlantLab } from '@/lib/supabase/config';
 
 export type AccessSite = {
   id: string;
@@ -53,7 +54,9 @@ function isAccessContext(value: unknown): value is AccessContext {
 
 export const getCurrentAccessContext = cache(async () => {
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc('pl_get_current_access_context');
+  const { data, error } = isolatedPlantLab
+    ? await supabase.schema(isolatedApiSchema).rpc('get_current_access_context')
+    : await supabase.rpc('pl_get_current_access_context');
 
   if (error || !isAccessContext(data)) {
     return null;
@@ -75,6 +78,10 @@ export async function requireAccess(capability: AccessCapability) {
 export async function requireCurrentVariantAccess() {
   const variant = getAppVariant();
   return requireAccess(variant.accessCapability);
+}
+
+export function canUsePreviewVariant(context: AccessContext, variant: AppVariantCode) {
+  return context.modules.includes(variant) || context.modules.includes('PLATFORM');
 }
 
 export async function requireVariantAccess(expectedVariant: AppVariantCode) {

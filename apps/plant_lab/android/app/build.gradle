@@ -14,6 +14,44 @@ if (localPropertiesFile.exists()) {
 
 def flutterVersionCode = localProperties.getProperty("flutter.versionCode", "1").toInteger()
 def flutterVersionName = localProperties.getProperty("flutter.versionName", "1.0.0")
+def localPreviewDefine = 'PLANT_LAB_LOCAL_PREVIEW=true'.getBytes('UTF-8').encodeBase64().toString()
+def localPreview = (project.findProperty('dart-defines') ?: '').toString().split(',').contains(localPreviewDefine)
+def releaseProperties = new Properties()
+def releasePropertiesFile = rootProject.file('key.properties')
+if (releasePropertiesFile.isFile()) {
+    releasePropertiesFile.withReader('UTF-8') { releaseProperties.load(it) }
+}
+def releaseEnv = [
+    storeFile: 'PLANT_LAB_RELEASE_STORE_FILE',
+    storeType: 'PLANT_LAB_RELEASE_STORE_TYPE',
+    storePassword: 'PLANT_LAB_RELEASE_STORE_PASSWORD',
+    keyAlias: 'PLANT_LAB_RELEASE_KEY_ALIAS',
+    keyPassword: 'PLANT_LAB_RELEASE_KEY_PASSWORD'
+]
+if (releaseEnv.values().any { System.getenv(it) != null }) {
+    releaseProperties.clear()
+    releaseEnv.each { property, variable ->
+        def value = System.getenv(variable)
+        if (value != null) releaseProperties.setProperty(property, value)
+    }
+}
+def releaseStore = releaseProperties.getProperty('storeFile')
+def releaseStoreFile = releaseStore?.trim() ? rootProject.file(releaseStore) : null
+def releaseSigningReady = releaseStoreFile?.isFile() &&
+    releaseStoreFile.name.toLowerCase(Locale.ROOT) != 'debug.keystore' &&
+    ['storePassword', 'keyAlias', 'keyPassword'].every { releaseProperties.getProperty(it)?.trim() } &&
+    !'androiddebugkey'.equalsIgnoreCase(releaseProperties.getProperty('keyAlias')?.trim())
+
+gradle.taskGraph.whenReady { graph ->
+    def buildsReleaseArtifact = graph.allTasks.any { task ->
+        task.project == project && task.name ==~ /(?i)^(assemble|bundle|package|validateSigning).*release.*/
+    }
+    if (buildsReleaseArtifact && (localPreview || !releaseSigningReady)) {
+        throw new GradleException(localPreview
+            ? 'A local preview must not be packaged as a release.'
+            : 'Release signing requires an approved non-debug keystore (local signing environment or android/key.properties).')
+    }
+}
 
 android {
     namespace 'com.plantlab.plant_lab'
@@ -48,9 +86,30 @@ android {
         jvmTarget = "17"
     }
 
+    signingConfigs {
+        if (releaseSigningReady) {
+            release {
+                storeFile releaseStoreFile
+                if (releaseProperties.getProperty('storeType')) {
+                    storeType releaseProperties.getProperty('storeType')
+                }
+                storePassword releaseProperties.getProperty('storePassword')
+                keyAlias releaseProperties.getProperty('keyAlias')
+                keyPassword releaseProperties.getProperty('keyPassword')
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            if (localPreview) {
+                applicationIdSuffix ".preview"
+            }
+        }
         release {
-            signingConfig signingConfigs.debug
+            if (releaseSigningReady) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             shrinkResources false
         }

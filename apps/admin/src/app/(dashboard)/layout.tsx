@@ -5,9 +5,11 @@ import { createClient } from '@/lib/supabase/server';
 import styles from './dashboard-layout.module.css';
 import LogoutButton from './LogoutButton';
 import ThemeToggle from '@/components/ThemeToggle';
+import ScopedNav from './ScopedNav';
 import { operationalWritesEnabled } from '@/lib/operationalMode';
-import { getCurrentAccessContext } from '@/lib/accessContext';
+import { canUsePreviewVariant, getCurrentAccessContext } from '@/lib/accessContext';
 import { getAppVariant } from '@/lib/appVariant';
+import { hostedPilot, isolatedPlantLab, canonicalWritesEnabled } from '@/lib/supabase/config';
 
 export default async function DashboardLayout({
   children,
@@ -26,7 +28,8 @@ export default async function DashboardLayout({
   const access = await getCurrentAccessContext();
   const variant = getAppVariant();
 
-  if (!access || !access[variant.accessCapability]) {
+  if (!access || !access[variant.accessCapability] ||
+    (isolatedPlantLab && !canUsePreviewVariant(access, variant.code))) {
     redirect('/access-denied');
   }
 
@@ -36,6 +39,28 @@ export default async function DashboardLayout({
   const scopedSites = access.sites.filter(
     (site) => site.site_type.toUpperCase() === variant.code,
   );
+
+  if (isolatedPlantLab) {
+    return (
+      <div className={styles.mainWrapper}>
+        <header className={styles.header}>
+          <div className={styles.scopedBrand}>
+            <Image src={variant.logoPath} alt={`Logo ${variant.appName}`} width={36} height={36} style={{ objectFit: 'contain' }} />
+            <div><strong>{variant.appName}</strong>
+              <div className={styles.scopeCaption}>{roleName} · {scopedSites.map(site => site.site_name).join(', ') || 'Site belum tersedia'}</div></div>
+          </div>
+          <div className={styles.scopedAccount}><ThemeToggle /><details><summary>Akun</summary><div className={styles.accountPanel}><strong>{roleName}</strong><p>{displayEmail}</p><LogoutButton /></div></details></div>
+        </header>
+        <a className={styles.skipLink} href="#main-content">Lewati menu, ke isi halaman</a>
+        <div className={styles.readOnlyBanner} role="status">
+          <strong>{hostedPilot ? (canonicalWritesEnabled ? 'Pilot operasional · Online' : 'Pilot internal · Hanya-baca') : canonicalWritesEnabled ? 'Preview lokal · Uji pengajuan' : 'Preview lokal · Read-only'}</strong>
+          <span>{canonicalWritesEnabled ? 'Data asli · Catat hanya pekerjaan yang benar-benar dilakukan.' : 'Hanya antrean Plant/Lab mandiri.'}</span>
+        </div>
+        {hostedPilot && <ScopedNav plant={variant.code === 'PLANT'} supervisor={access.roles.some(role => role.module_code === 'PLANT' && role.role_code === 'PLANT_SPV')} roles={access.roles.filter(role => role.module_code === variant.code).map(role => role.role_code)} sites={scopedSites.map(site => site.site_name).join(', ')} />}
+        <main id="main-content" className={styles.mainContent}>{children}</main>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.container}>

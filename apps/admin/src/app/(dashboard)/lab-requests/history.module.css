@@ -1,0 +1,21 @@
+.browser { margin: 1.25rem 0; padding: 1rem; border: 1px solid var(--border); border-radius: 1rem; background: var(--bg-surface); min-width: 0; overflow-wrap: anywhere; }
+.browser summary { cursor: pointer; font-weight: 650; padding: .5rem 0; }
+.browser p { margin: .75rem 0; line-height: 1.6; }
+.notice { padding: .85rem; border-left: 4px solid var(--warning, #b77912); background: var(--bg-card); border-radius: .4rem; }
+.controls { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: .75rem; align-items: end; }
+.controls label { display: grid; gap: .4rem; min-width: 0; }
+.controls input, .controls select { width: 100%; min-width: 0; min-height: 44px; padding: .65rem; color: var(--text-primary); background: var(--bg-surface); border: 1px solid var(--border); border-radius: .5rem; }
+.record, .phase { margin-top: .8rem; padding: .75rem; border: 1px solid var(--border); border-radius: .65rem; min-width: 0; }
+.phase { background: var(--bg-card); }
+.facts { display: grid; grid-template-columns: minmax(8rem, 1fr) minmax(0, 2fr); gap: .45rem .75rem; margin: .8rem 0; }
+.facts dt { color: var(--text-secondary); }
+.facts dd { margin: 0; }
+.notes { padding-left: 1.25rem; line-height: 1.6; }
+.cells { margin-top: .8rem; }
+.scroll { overflow-x: auto; max-width: 100%; margin-top: .75rem; }
+.scroll table { border-collapse: collapse; width: 100%; min-width: 440px; font-size: .85rem; }
+.scroll th, .scroll td { padding: .6rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; max-width: 24rem; overflow-wrap: anywhere; }
+.scroll caption { text-align: left; padding: .5rem 0; color: var(--text-secondary); }
+.scroll small { display: block; margin-top: .3rem; color: var(--text-secondary); }
+.pagination { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1rem; }
+@media (max-width: 700px) { .controls { grid-template-columns: minmax(0, 1fr); } .facts { grid-template-columns: minmax(0, 1fr); } .facts dd { margin-bottom: .5rem; } .browser { padding: .8rem; } .record, .phase { padding: .6rem; } }
