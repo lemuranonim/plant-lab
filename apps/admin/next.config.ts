@@ -18,9 +18,7 @@ const nextConfig: NextConfig = {
     if (localPreview && process.env.NODE_ENV !== 'development') {
       throw new Error('Plant/Lab standalone preview is only supported by Next dev.');
     }
-    // Redirect before any legacy Server Component starts querying its tables.
-    return ['/', '/dashboard', '/inspections', '/receiving', '/lab-quality', '/reports', '/users']
-      .map(source => ({ source, destination: '/lab-requests', permanent: false }));
+    return [];
   },
 };
 
