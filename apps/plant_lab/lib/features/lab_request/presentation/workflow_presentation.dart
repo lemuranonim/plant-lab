@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../app/theme/lab_theme.dart';
 
 // Presentation only: never use these labels to authorize or submit commands.
 String workflowStatus(String code) =>
@@ -126,6 +127,28 @@ String workflowNextStep(String status, bool plant, {bool reviewer = false}) {
   }
 }
 
+String labQueueCue(
+  String status, {
+  required bool writes,
+  required bool analyst,
+  required bool reviewer,
+}) {
+  if (workflowGroup(status) == 'closed') return 'Tidak ada tindakan lanjutan';
+  if (!writes) return 'Lihat detail · baca saja';
+  return switch (status) {
+    'REQUESTED' => 'Periksa permintaan masuk',
+    'ACCEPTED' || 'PREPARED' => 'Menunggu kiriman Plant',
+    'SENT' => 'Cocokkan sampel fisik',
+    'RECEIVED' => analyst ? 'Mulai pengujian' : 'Menunggu Analis memulai uji',
+    'TESTING' ||
+    'IN_PROGRESS' => analyst ? 'Catat pengamatan' : 'Menunggu kiriman hasil',
+    'IN_REVIEW' => reviewer ? 'Periksa hasil QA' : 'Menunggu pemeriksaan QA',
+    'RETEST' => analyst ? 'Siapkan uji ulang' : 'Menunggu uji ulang',
+    'APPROVED' => 'Lihat hasil analisis',
+    _ => 'Periksa detail permintaan',
+  };
+}
+
 class WorkflowNote extends StatelessWidget {
   const WorkflowNote({
     super.key,
@@ -159,24 +182,26 @@ class WorkflowNote extends StatelessWidget {
 }
 
 class WorkflowStatusBadge extends StatelessWidget {
-  const WorkflowStatusBadge({super.key, required this.status});
+  const WorkflowStatusBadge({super.key, required this.status, this.label});
   final String status;
+  final String? label;
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final tone = Theme.of(context).extension<LabPalette>()?.status(status);
     return Tooltip(
-      message: status,
+      message: label ?? status,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: scheme.secondaryContainer,
+          color: tone?.surface ?? scheme.secondaryContainer,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
-          workflowStatus(status),
-          style: Theme.of(
-            context,
-          ).textTheme.labelMedium?.copyWith(color: scheme.onSecondaryContainer),
+          label ?? workflowStatus(status),
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            color: tone?.ink ?? scheme.onSecondaryContainer,
+          ),
         ),
       ),
     );

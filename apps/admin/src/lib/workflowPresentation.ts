@@ -47,3 +47,20 @@ export function queueGroup(status: string) {
   if (['CANCELLED', 'CLOSED', 'REJECTED'].includes(status)) return 'closed';
   return 'active';
 }
+
+// Display and navigation only. Keep canonical action guards in the panels.
+export function labQueueCue(status: string, writes: boolean, analyst: boolean, reviewer: boolean) {
+  if (queueGroup(status) === 'closed') return { label: 'Tidak ada tindakan lanjutan' };
+  if (!writes) return { label: 'Lihat detail · baca saja' };
+  switch (status) {
+    case 'REQUESTED': return { label: 'Periksa permintaan masuk' };
+    case 'ACCEPTED': case 'PREPARED': return { label: 'Menunggu kiriman Plant' };
+    case 'SENT': return { label: 'Cocokkan sampel fisik' };
+    case 'RECEIVED': return analyst ? { label: 'Mulai pengujian', section: 'observations' as const } : { label: 'Menunggu Analis memulai uji' };
+    case 'TESTING': case 'IN_PROGRESS': return analyst ? { label: 'Catat pengamatan', section: 'observations' as const } : { label: 'Menunggu kiriman hasil' };
+    case 'IN_REVIEW': return reviewer ? { label: 'Periksa hasil QA', section: 'observations' as const } : { label: 'Menunggu pemeriksaan QA' };
+    case 'RETEST': return analyst ? { label: 'Siapkan uji ulang', section: 'observations' as const } : { label: 'Menunggu uji ulang' };
+    case 'APPROVED': return { label: 'Lihat hasil analisis' };
+    default: return { label: 'Periksa detail permintaan' };
+  }
+}

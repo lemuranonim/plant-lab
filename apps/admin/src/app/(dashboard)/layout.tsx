@@ -3,6 +3,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/server';
 import styles from './dashboard-layout.module.css';
+import lab from './lab-surface.module.css';
 import LogoutButton from './LogoutButton';
 import ThemeToggle from '@/components/ThemeToggle';
 import ScopedNav from './ScopedNav';
@@ -39,6 +40,32 @@ export default async function DashboardLayout({
   const scopedSites = access.sites.filter(
     (site) => site.site_type.toUpperCase() === variant.code,
   );
+
+  if (hostedPilot && variant.code === 'LAB') {
+    const sites = scopedSites.map(site => site.site_name).join(', ');
+    const roles = access.roles.filter(role => role.module_code === 'LAB').map(role => role.role_code);
+    const supportNumber = process.env.LAB_SUPPORT_WHATSAPP?.trim();
+    const reportWhatsAppNumber = supportNumber && /^[1-9]\d{7,14}$/.test(supportNumber) && roles.length ? supportNumber : undefined;
+    const mode = canonicalWritesEnabled ? 'Pilot operasional · Online' : 'Pilot internal · Hanya-baca';
+    return <div className={lab.shell} data-lab-workspace="">
+      <a className={styles.skipLink} href="#main-content">Lewati menu, ke isi halaman</a>
+      <header className={`${styles.header} ${lab.head}`}>
+        <div className={styles.scopedBrand}>
+          <Image src={variant.logoPath} alt="" width={36} height={36} style={{ objectFit: 'contain' }} />
+          <div><strong>{variant.appName}</strong><div className={styles.scopeCaption}>{roleName} · {sites || 'Site belum tersedia'}</div></div>
+        </div>
+        <span className={`${lab.mode} ${lab.headBadge}`} data-readonly={!canonicalWritesEnabled || undefined}>{mode}</span>
+        <div className={styles.scopedAccount}><ThemeToggle /><details><summary>Akun</summary><div className={styles.accountPanel}><strong>{roleName}</strong><p>{displayEmail}</p><LogoutButton /></div></details></div>
+      </header>
+      <div role="status" className={lab.modeNote}>
+        <p className={lab.modeDetail}>{canonicalWritesEnabled ? 'Data asli · Catat hanya pekerjaan yang benar-benar dilakukan.' : 'Hanya antrean Plant/Lab mandiri.'}</p>
+      </div>
+      <div className={lab.body}>
+        <ScopedNav plant={false} supervisor={false} roles={roles} sites={sites} reportWhatsAppNumber={reportWhatsAppNumber} />
+        <main id="main-content" tabIndex={-1} className={`${styles.mainContent} ${lab.main}`}>{children}</main>
+      </div>
+    </div>;
+  }
 
   if (isolatedPlantLab) {
     return (

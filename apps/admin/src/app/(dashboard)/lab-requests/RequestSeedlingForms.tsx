@@ -21,15 +21,18 @@ export function RequestSeedlingDownload({runCode,status,kind}:{runCode:string;st
   {busy&&<p role="status">Menyiapkan form…</p>}{error&&<p role="alert">{error}</p>}
  </section>;
 }
-export function GerminationRequestForms({requestId,runCode,status}:{requestId:string;runCode:string;status:string}){
+export function GerminationRequestHistory({requestId,runCode}:{requestId:string;runCode:string}){
  const [runs,setRuns]=useState<Attempt[]|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),lock=useRef(false);
  async function load(){if(lock.current)return;lock.current=true;setBusy(true);setError('');setRuns(null);
   try{const result=await createClient().schema(isolatedApiSchema).rpc('list_request_germination_form_runs',{p_request_id:requestId});if(result.error)throw Error();const data=result.data;if(data.request_id!==requestId||data.read_only!==true||data.total!==data.runs.length)throw Error();setRuns((data.runs as Attempt[]).filter(r=>r.run_code!==runCode));}
   catch{setError('Riwayat belum dimuat. Periksa koneksi dan penugasan Lab, lalu coba lagi.');}finally{lock.current=false;setBusy(false);}
  }
- return <><RequestSeedlingDownload runCode={runCode} status={status} kind="Germinasi"/>
-  <details><summary>Cetakan percobaan Germinasi lainnya</summary><button className="btn" disabled={busy} onClick={()=>void load()}>{busy?'Memuat…':'Muat riwayat percobaan'}</button>
+ return <details><summary>Cetakan percobaan Germinasi lainnya</summary><button className="btn" disabled={busy} onClick={()=>void load()}>{busy?'Memuat…':'Muat riwayat percobaan'}</button>
    {error&&<p role="alert">{error}</p>}{runs?.length===0&&<p>Tidak ada percobaan lain dalam permintaan ini.</p>}
    {runs?.map(r=><div key={r.run_code}><p>Percobaan {r.attempt_no} · {r.status}</p><RequestSeedlingDownload runCode={r.run_code} status={r.status} kind="Germinasi"/></div>)}
-  </details></>;
+  </details>;
+}
+export function GerminationRequestForms({requestId,runCode,status}:{requestId:string;runCode:string;status:string}){
+ return <><RequestSeedlingDownload runCode={runCode} status={status} kind="Germinasi"/>
+  <GerminationRequestHistory requestId={requestId} runCode={runCode}/></>;
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'lab_workspace_widgets.dart';
 
 Map<String, dynamic> emptyRoutineForm(String method, int rows) => {
   'version': 1,
@@ -19,11 +20,10 @@ class RoutineFormDetailsFields extends StatelessWidget {
     required this.value,
     required this.enabled,
     required this.germination,
-    required this.retest,
     required this.onChanged,
   });
   final Map<String, dynamic> value;
-  final bool enabled, germination, retest;
+  final bool enabled, germination;
   final ValueChanged<Map<String, dynamic>> onChanged;
 
   Future<void> pick(BuildContext context, String key) async {
@@ -62,6 +62,8 @@ class RoutineFormDetailsFields extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Card(
     child: ExpansionTile(
+      shape: const Border(),
+      collapsedShape: const Border(),
       title: Text('Rincian form ${germination ? 'Germinasi' : 'Vigor'}'),
       children: [
         Padding(
@@ -69,8 +71,10 @@ class RoutineFormDetailsFields extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'Tanggal tanam berbeda dari mulai perlakuan Vigor. DAP dihitung dari selisih tanggal tanam dan pengamatan dalam WIB.',
+              const LabHelp(
+                label: 'Cara isi waktu form',
+                text:
+                    'Tanggal tanam berbeda dari mulai perlakuan Vigor. DAP dihitung dari tanggal tanam dan pengamatan dalam WIB.',
               ),
               for (final entry in {
                 'crop_species': 'Tanaman / spesies pada form',
@@ -91,10 +95,7 @@ class RoutineFormDetailsFields extends StatelessWidget {
                     }),
                   ),
                 ),
-              if (germination)
-                const Text(
-                  'Media dan suhu metode aktif: Pasir 25 °C. Paper BP/TP dan suhu lain belum diaktifkan sebagai metode pengujian.',
-                ),
+              if (germination) const Text('Metode: Pasir 25 °C.'),
               for (final entry in {
                 'planted_at': 'Tanggal dan jam tanam aktual',
                 'first_count_at': 'Pengamatan first count aktual',
@@ -113,9 +114,6 @@ class RoutineFormDetailsFields extends StatelessWidget {
                         )
                       : null,
                 ),
-              Text(
-                'Jenis uji: ${retest ? 'Retest Verification dari keputusan QA' : 'Initial'}. Revalidation 1–3 belum diaktifkan; jangan mengganti label untuk melewati alur QA.',
-              ),
             ],
           ),
         ),

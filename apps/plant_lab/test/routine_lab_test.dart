@@ -4,6 +4,121 @@ import 'package:plant_lab/app/theme/app_theme.dart';
 import 'package:plant_lab/features/lab_request/presentation/routine_lab_screen.dart';
 
 void main() {
+  testWidgets(
+    'final total excludes first count and QA opens a saved revision',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 850);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      int revision = 0;
+      Map<String, dynamic>? sent;
+      bool? requestedReview;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () async {
+                  requestedReview = await Navigator.of(context).push<bool>(
+                    MaterialPageRoute<bool>(
+                      builder: (_) => RoutineDraftEditor(
+                        labSiteId: 'memory-lab',
+                        canOpenReview: true,
+                        record: {
+                          'id': 'memory-draft',
+                          'lot_id': 'memory-lot',
+                          'lot_code': 'DEMO-DCS-123',
+                          'hybrid': 'H59',
+                          'stage_code': 'DCS',
+                          'revision': 0,
+                          'can_edit': true,
+                          'method_code': 'SAND_25C',
+                          'method_name': 'Germinasi pasir',
+                          'content': emptyRoutineContent('SAND_25C', 2),
+                        },
+                        saveDraft: (args) async {
+                          sent = args;
+                          return {'revision': ++revision};
+                        },
+                      ),
+                    ),
+                  );
+                },
+                child: const Text('Buka draft'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Buka draft'));
+      await tester.pumpAndSettle();
+      final save = find.byKey(const ValueKey('routine-save-draft'));
+      final go = find.text('Ke pemeriksaan QA');
+      expect(save.hitTestable(), findsOneWidget);
+      expect(go, findsNothing);
+      await tester.tap(find.text('Ulangan'));
+      await tester.pumpAndSettle();
+      final header = find.descendant(
+        of: find.byType(AppBar),
+        matching: find.text('DEMO-DCS-123'),
+      );
+      expect(header.hitTestable(), findsOneWidget);
+      expect(save.hitTestable(), findsOneWidget);
+      Future<void> count(String label, String value) async {
+        final field = find.widgetWithText(TextFormField, label);
+        await tester.ensureVisible(field);
+        await tester.pumpAndSettle();
+        await tester.enterText(field, value);
+        await tester.pumpAndSettle();
+      }
+
+      await count('Normal first count', '42');
+      expect(find.text('Final: belum dicatat'), findsOneWidget);
+      await count('Fresh', '0');
+      expect(
+        find.text('Final: 0/50 benih · 1/5 kategori terisi'),
+        findsOneWidget,
+      );
+      await count('Normal final count', '45');
+      await count('Abnormal', '6');
+      expect(
+        find.textContaining('Final: 51/50 benih · 3/5 kategori terisi'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Jumlah melebihi 50 benih.'), findsOneWidget);
+      await count('Abnormal', '5');
+      await tester.tap(save);
+      await tester.pumpAndSettle();
+      expect(sent!['p_content']['observations'][0], {
+        'first_normal': 42,
+        'final_normal': 45,
+        'abnormal': 5,
+        'fresh': 0,
+        'hard': null,
+        'dead': null,
+      });
+      expect(revision, 1);
+      await count('Mati', '0');
+      await tester.tap(go);
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Simpan perubahan sebelum membuka pemeriksaan QA.'),
+        findsOneWidget,
+      );
+      expect(requestedReview, isNull);
+      await tester.tap(save);
+      await tester.pumpAndSettle();
+      expect(sent!['p_expected_revision'], 1);
+      await tester.tap(go);
+      await tester.pumpAndSettle();
+      expect(requestedReview, true);
+      expect(revision, 2);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   test('blank is unknown; a/b pairs and RET remain distinct', () {
     final germ = emptyRoutineContent('SAND_25C', 2);
     expect((germ['observations'] as List).length, 4);
@@ -56,11 +171,12 @@ void main() {
         await tester.pumpAndSettle();
         final choice = find.byKey(const ValueKey('routine-replicates-2-0'));
         await tester.scrollUntilVisible(
-          choice,
-          250,
+          choice.hitTestable(),
+          150,
           scrollable: find.byType(Scrollable).first,
         );
-        await tester.tap(choice);
+        await tester.pumpAndSettle();
+        await tester.tap(choice.hitTestable());
         await tester.pumpAndSettle();
         await tester.tap(find.text('4 × 100 benih').last);
         await tester.pumpAndSettle();
@@ -150,10 +266,7 @@ void main() {
             );
             await tester.pumpAndSettle();
             expect(tester.takeException(), null);
-            expect(
-              find.text('Mulai dari draft, lalu diperiksa QA'),
-              findsOneWidget,
-            );
+            expect(find.text('Jenis uji: Pengujian awal'), findsOneWidget);
             if (editable) {
               if (replicates == 4) {
                 final choice = find.byKey(
@@ -187,6 +300,7 @@ void main() {
                 scrollable: find.byType(Scrollable).first,
               );
               await tester.enterText(sample, 'Actual label');
+              await tester.pumpAndSettle();
               final save = find.byKey(const ValueKey('routine-save-draft'));
               await tester.scrollUntilVisible(
                 save,

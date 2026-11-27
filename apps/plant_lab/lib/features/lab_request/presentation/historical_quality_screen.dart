@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/config/app_config.dart';
 import '../../../core/database/supabase_client.dart';
+import 'lab_workspace_widgets.dart';
 
 typedef HistoryLoader =
     Future<Map<String, dynamic>?> Function(
@@ -158,6 +159,7 @@ class _HistoricalQualityScreenState extends State<HistoricalQualityScreen> {
     body: FutureBuilder<Map<String, dynamic>>(
       future: _options,
       builder: (context, snapshot) {
+        final labStyle = widget.module == 'LAB';
         final unique = {
           for (final lot in _maps(snapshot.data?['lots']))
             lot['id'] as String: lot,
@@ -171,9 +173,56 @@ class _HistoricalQualityScreenState extends State<HistoricalQualityScreen> {
                   ),
             )
             .toList();
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
+        final lotFields = [
+          TextField(
+            decoration: InputDecoration(
+              labelText: 'Cari lot histori',
+              prefixIcon: labStyle ? const Icon(Icons.search) : null,
+            ),
+            onChanged: (value) => setState(() => _query = value),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            key: ValueKey(_lot),
+            initialValue: _lot,
+            isExpanded: true,
+            itemHeight: labStyle ? null : kMinInteractiveDimension,
+            decoration: const InputDecoration(labelText: 'Lot histori'),
+            items: lots
+                .map(
+                  (lot) => DropdownMenuItem(
+                    value: lot['id'] as String,
+                    child: Text(
+                      lot['lot_code'] as String,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: _select,
+          ),
+          const SizedBox(height: 8),
+          Text('${lots.length} pilihan ditampilkan dari ${unique.length} lot.'),
+          if (labStyle && lots.isEmpty)
+            const Text(
+              'Kode lot belum ditemukan. Cek kembali kode yang dicari.',
+            ),
+          const SizedBox(height: 12),
+          FilledButton(
+            onPressed: _lot == null || _busy ? null : () => _load(0),
+            child: Text(_busy ? 'Memuat histori…' : 'Tampilkan histori'),
+          ),
+        ];
+        final children = <Widget>[
+          if (labStyle)
+            const LabReadOnlyIntro(
+              title: 'Arsip sumber Excel',
+              icon: Icons.inventory_2_outlined,
+              description:
+                  'Bukan hasil yang disetujui QA aplikasi atau izin pelepasan lot. Acuan mutu saat ini tidak diterapkan ulang pada histori.',
+            )
+          else
             const Card(
               child: Padding(
                 padding: EdgeInsets.all(16),
@@ -183,122 +232,105 @@ class _HistoricalQualityScreenState extends State<HistoricalQualityScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 12),
-            Text(
-              widget.module == 'LAB'
-                  ? 'Lab: hanya lot pada permintaan yang berizin. Fase QI tanpa tahap yang jelas tidak ditampilkan.'
-                  : 'Plant: lot dalam cakupan site Anda.',
+          const SizedBox(height: 12),
+          Text(
+            widget.module == 'LAB'
+                ? 'Lab: hanya lot pada permintaan yang berizin. Fase QI tanpa tahap yang jelas tidak ditampilkan.'
+                : 'Plant: lot dalam cakupan site Anda.',
+          ),
+          const Text(
+            'Batch saat ini H59/SWC; tidak semua lot mempunyai histori terpetakan.',
+          ),
+          const SizedBox(height: 16),
+          if (snapshot.connectionState != ConnectionState.done)
+            const LinearProgressIndicator(),
+          if (snapshot.hasError)
+            TextButton(
+              onPressed: () => setState(() => _options = _loadOptions()),
+              child: const Text('Pilihan histori gagal dimuat. Coba lagi'),
             ),
-            const Text(
-              'Batch saat ini H59/SWC; tidak semua lot mempunyai histori terpetakan.',
+          if (snapshot.hasData) ...[
+            if (snapshot.data?['lots_truncated'] == true)
+              const Text(
+                'Daftar dibatasi API. Lot di luar daftar belum dapat dipilih di tampilan ini.',
+              ),
+            if (unique.isEmpty)
+              const Text('Belum ada lot yang dapat dipilih dalam cakupan Anda.')
+            else if (labStyle)
+              LabFormCard(
+                title: 'Pilih lot di arsip',
+                icon: Icons.search,
+                hint:
+                    'Cari kode lot, pilih dari daftar, lalu tampilkan histori.',
+                children: lotFields,
+              )
+            else
+              ...lotFields,
+          ],
+          if (_busy)
+            const Padding(
+              padding: EdgeInsets.all(12),
+              child: LinearProgressIndicator(),
             ),
+          if (_message != null)
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Semantics(liveRegion: true, child: Text(_message!)),
+            ),
+          if (_history != null) ...[
             const SizedBox(height: 16),
-            if (snapshot.connectionState != ConnectionState.done)
-              const LinearProgressIndicator(),
-            if (snapshot.hasError)
-              TextButton(
-                onPressed: () => setState(() => _options = _loadOptions()),
-                child: const Text('Pilihan histori gagal dimuat. Coba lagi'),
+            HistoricalQualityContent(data: _history!, labStyle: labStyle),
+            if ((_history!['total_records'] as int) > 0) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Rekaman ${_offset + 1}–${_offset + (_history!['records'] as List).length} '
+                'dari ${_history!['total_records']}. Satu rekaman sumber dapat memuat beberapa fase.',
               ),
-            if (snapshot.hasData) ...[
-              if (snapshot.data?['lots_truncated'] == true)
-                const Text(
-                  'Daftar dibatasi API. Lot di luar daftar belum dapat dipilih di tampilan ini.',
-                ),
-              if (unique.isEmpty)
-                const Text(
-                  'Belum ada lot yang dapat dipilih dalam cakupan Anda.',
-                )
-              else ...[
-                TextField(
-                  decoration: const InputDecoration(
-                    labelText: 'Cari lot histori',
+              Wrap(
+                spacing: 12,
+                children: [
+                  TextButton(
+                    onPressed: _busy || _offset == 0
+                        ? null
+                        : () => _load((_offset - _pageSize).clamp(0, _offset)),
+                    child: const Text('Sebelumnya'),
                   ),
-                  onChanged: (value) => setState(() => _query = value),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  key: ValueKey(_lot),
-                  initialValue: _lot,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Lot histori'),
-                  items: lots
-                      .map(
-                        (lot) => DropdownMenuItem(
-                          value: lot['id'] as String,
-                          child: Text(
-                            lot['lot_code'] as String,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: _select,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '${lots.length} pilihan ditampilkan dari ${unique.length} lot.',
-                ),
-                const SizedBox(height: 12),
-                FilledButton(
-                  onPressed: _lot == null || _busy ? null : () => _load(0),
-                  child: Text(_busy ? 'Memuat histori…' : 'Tampilkan histori'),
-                ),
-              ],
-            ],
-            if (_busy)
-              const Padding(
-                padding: EdgeInsets.all(12),
-                child: LinearProgressIndicator(),
+                  TextButton(
+                    onPressed:
+                        _busy ||
+                            _offset + (_history!['records'] as List).length >=
+                                (_history!['total_records'] as int)
+                        ? null
+                        : () => _load(_offset + _pageSize),
+                    child: const Text('Berikutnya'),
+                  ),
+                ],
               ),
-            if (_message != null)
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Semantics(liveRegion: true, child: Text(_message!)),
-              ),
-            if (_history != null) ...[
-              const SizedBox(height: 16),
-              HistoricalQualityContent(data: _history!),
-              if ((_history!['total_records'] as int) > 0) ...[
-                const SizedBox(height: 12),
-                Text(
-                  'Rekaman ${_offset + 1}–${_offset + (_history!['records'] as List).length} '
-                  'dari ${_history!['total_records']}. Satu rekaman sumber dapat memuat beberapa fase.',
-                ),
-                Wrap(
-                  spacing: 12,
-                  children: [
-                    TextButton(
-                      onPressed: _busy || _offset == 0
-                          ? null
-                          : () =>
-                                _load((_offset - _pageSize).clamp(0, _offset)),
-                      child: const Text('Sebelumnya'),
-                    ),
-                    TextButton(
-                      onPressed:
-                          _busy ||
-                              _offset + (_history!['records'] as List).length >=
-                                  (_history!['total_records'] as int)
-                          ? null
-                          : () => _load(_offset + _pageSize),
-                      child: const Text('Berikutnya'),
-                    ),
-                  ],
-                ),
-              ],
             ],
           ],
-        );
+        ];
+        return labStyle
+            ? SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: children,
+                ),
+              )
+            : ListView(padding: const EdgeInsets.all(16), children: children);
       },
     ),
   );
 }
 
 class HistoricalQualityContent extends StatelessWidget {
-  const HistoricalQualityContent({super.key, required this.data});
+  const HistoricalQualityContent({
+    super.key,
+    required this.data,
+    this.labStyle = false,
+  });
   final Map<String, dynamic> data;
+  final bool labStyle;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -316,6 +348,9 @@ class HistoricalQualityContent extends StatelessWidget {
         Card(
           child: ExpansionTile(
             key: ValueKey(record['id']),
+            shape: labStyle ? const Border() : null,
+            collapsedShape: labStyle ? const Border() : null,
+            leading: labStyle ? const Icon(Icons.description_outlined) : null,
             title: Text(
               record['source_type'] == 'QUALITY_INFORMATION_2026'
                   ? 'Quality Information'
@@ -330,7 +365,7 @@ class HistoricalQualityContent extends StatelessWidget {
               if (record['source_testing_type'] != null)
                 Text('Jenis sumber: ${record['source_testing_type']}'),
               for (final phase in _maps(record['phases']))
-                _SourcePhase(phase: phase),
+                _SourcePhase(phase: phase, labStyle: labStyle),
             ],
           ),
         ),
@@ -339,44 +374,60 @@ class HistoricalQualityContent extends StatelessWidget {
 }
 
 class _SourcePhase extends StatelessWidget {
-  const _SourcePhase({required this.phase});
+  const _SourcePhase({required this.phase, required this.labStyle});
   final Map<String, dynamic> phase;
+  final bool labStyle;
 
   @override
   Widget build(BuildContext context) {
     final rows = _maps(phase['subunits']);
     final values = _maps(phase['values']);
+    final facts = [
+      ('Metode sumber', historyValue(phase['source_method_label'])),
+      ('Tahap lot sumber', historyValue(phase['source_stage'])),
+      (
+        'Tanggal mulai',
+        _date(phase['source_planted_date'], phase['source_planted_origin']),
+      ),
+      (
+        'Tanggal pengamatan',
+        _date(
+          phase['source_observation_date'],
+          phase['source_observation_origin'],
+        ),
+      ),
+      (
+        'Persentase sumber',
+        phase['source_percent'] == null
+            ? 'Belum dicatat'
+            : '${phase['source_percent']}%',
+      ),
+      (
+        'Hitung ulang diagnostik',
+        phase['diagnostic_percent'] == null
+            ? 'Tidak dihitung / data tidak cukup'
+            : '${phase['diagnostic_percent']}%',
+      ),
+    ];
     return ExpansionTile(
+      shape: labStyle ? const Border() : null,
+      collapsedShape: labStyle ? const Border() : null,
       title: Text(
         '${_phaseNames[phase['kind']] ?? phase['kind']} · ${phase['label']}',
       ),
       childrenPadding: const EdgeInsets.symmetric(vertical: 8),
+      expandedCrossAxisAlignment: labStyle
+          ? CrossAxisAlignment.stretch
+          : CrossAxisAlignment.center,
       children: [
-        _FactLine('Metode sumber', historyValue(phase['source_method_label'])),
-        _FactLine('Tahap lot sumber', historyValue(phase['source_stage'])),
-        _FactLine(
-          'Tanggal mulai',
-          _date(phase['source_planted_date'], phase['source_planted_origin']),
-        ),
-        _FactLine(
-          'Tanggal pengamatan',
-          _date(
-            phase['source_observation_date'],
-            phase['source_observation_origin'],
-          ),
-        ),
-        _FactLine(
-          'Persentase sumber',
-          phase['source_percent'] == null
-              ? 'Belum dicatat'
-              : '${phase['source_percent']}%',
-        ),
-        _FactLine(
-          'Hitung ulang diagnostik',
-          phase['diagnostic_percent'] == null
-              ? 'Tidak dihitung / data tidak cukup'
-              : '${phase['diagnostic_percent']}%',
-        ),
+        if (labStyle)
+          LabFieldGrid(
+            fields: [
+              for (final (label, value) in facts) LabRecordValue(label, value),
+            ],
+          )
+        else
+          for (final (label, value) in facts) _FactLine(label, value),
         if (phase['source_conclusion'] != null)
           _FactLine(
             'Keterangan Excel',
@@ -391,43 +442,76 @@ class _SourcePhase extends StatelessWidget {
           const Text(
             'Hitungan asli per subunit · — berarti belum dicatat, bukan nol',
           ),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              columnSpacing: 18,
-              columns: [
-                for (final label in [
-                  'Subunit / baris',
-                  'Normal',
-                  'Abnormal',
-                  'Mati',
-                  'Total',
-                ])
-                  DataColumn(label: Text(label)),
-              ],
-              rows: [
-                for (final row in rows)
-                  DataRow(
-                    cells: [
-                      DataCell(
-                        Text(
-                          '${row['label'] ?? 'Tanpa label'} / ${row['source_row']}',
-                        ),
+          if (labStyle)
+            for (final row in rows)
+              Card.filled(
+                margin: const EdgeInsets.symmetric(vertical: 6),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        "${row['label'] ?? 'Tanpa label'} · Baris ${row['source_row']}",
+                        style: Theme.of(context).textTheme.titleSmall,
                       ),
-                      for (final name in [
-                        'normal',
-                        'abnormal',
-                        'dead',
-                        'total',
-                      ])
-                        DataCell(Text('${row[name] ?? '—'}')),
+                      const SizedBox(height: 8),
+                      LabFieldGrid(
+                        minFieldWidth: 86,
+                        fields: [
+                          for (final e in const {
+                            'normal': 'Normal',
+                            'abnormal': 'Abnormal',
+                            'dead': 'Mati',
+                            'total': 'Total',
+                          }.entries)
+                            LabRecordValue(e.value, '${row[e.key] ?? '—'}'),
+                        ],
+                      ),
                     ],
                   ),
-              ],
+                ),
+              )
+          else
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                columnSpacing: 18,
+                columns: [
+                  for (final label in [
+                    'Subunit / baris',
+                    'Normal',
+                    'Abnormal',
+                    'Mati',
+                    'Total',
+                  ])
+                    DataColumn(label: Text(label)),
+                ],
+                rows: [
+                  for (final row in rows)
+                    DataRow(
+                      cells: [
+                        DataCell(
+                          Text(
+                            '${row['label'] ?? 'Tanpa label'} / ${row['source_row']}',
+                          ),
+                        ),
+                        for (final name in [
+                          'normal',
+                          'abnormal',
+                          'dead',
+                          'total',
+                        ])
+                          DataCell(Text('${row[name] ?? '—'}')),
+                      ],
+                    ),
+                ],
+              ),
             ),
-          ),
         ],
         ExpansionTile(
+          shape: labStyle ? const Border() : null,
+          collapsedShape: labStyle ? const Border() : null,
           title: Text('Nilai sumber & posisi sel (${values.length})'),
           children: [
             for (final value in values)

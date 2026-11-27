@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/database/supabase_client.dart';
 import 'lab_logbook_screen.dart';
+import 'lab_workspace_widgets.dart';
 import 'moisture_lab_screen.dart';
 import 'routine_lab_screen.dart';
+import 'workflow_presentation.dart';
 
 const monitoringGroups = <String, String>{
   'ALL': 'Semua pekerjaan',
@@ -19,6 +21,12 @@ const monitoringGroups = <String, String>{
   'HISTORY': 'Riwayat uji ulang',
   'CLOSED': 'Ditutup / dibatalkan',
   'INCOMPLETE': 'Catatan belum lengkap',
+};
+const monitoringQuickGroups = {
+  'ALL': 'Semua',
+  'ACTIVE': 'Belum selesai',
+  'WAITING_QA': 'Menunggu QA',
+  'RETEST': 'Perlu uji ulang',
 };
 Map<String, dynamic> emptyMonitoringFilters() => {
   'p_lab_site_id': null,
@@ -40,6 +48,221 @@ String monitoringHours(dynamic value) {
   return h >= 24
       ? '${number(h / 24)} hari (${number(h)} jam)'
       : '${number(h)} jam';
+}
+
+class _FocusPanel extends StatelessWidget {
+  const _FocusPanel(this.focus);
+  final MonitoringFocus focus;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: focus.warning
+            ? theme.colorScheme.tertiaryContainer
+            : theme.colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: DefaultTextStyle.merge(
+        style: TextStyle(
+          color: focus.warning
+              ? theme.colorScheme.onTertiaryContainer
+              : theme.colorScheme.onSurface,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              focus.label,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            if (focus.showHours) Text(monitoringHours(focus.hours)),
+            if (focus.since != null) Text('Sejak ${logbookWib(focus.since)}'),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MonitoringDetail extends StatelessWidget {
+  const _MonitoringDetail({required this.entry});
+  final Map<String, dynamic> entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final focus = monitoringFocus(entry);
+    final scheme = Theme.of(context).colorScheme;
+    final timestamps = {
+      'Sampel diterima / tersedia': entry['received_at'],
+      'Kirim ke QA': entry['submitted_at'],
+      'Keputusan QA': entry['decision_at'],
+    };
+    return Scaffold(
+      appBar: AppBar(
+        toolbarHeight: LabLotTitle.toolbarHeight(context),
+        title: LabLotTitle(
+          lot: entry['lot_code'] as String,
+          reference:
+              (entry['run_code'] ?? entry['request_code'])?.toString() ??
+              'Rincian pemantauan',
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          LabFormCard(
+            title: entry['method_name'] as String,
+            icon: Icons.fact_check_outlined,
+            hint:
+                "${entry['hybrid']} · ${logbookOrigins[entry['entry_kind']] ?? entry['entry_kind']}",
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: WorkflowStatusBadge(
+                  status: entry['status'] as String,
+                  label: monitoringGroups[entry['work_group']],
+                ),
+              ),
+              if (focus != null) ...[
+                const SizedBox(height: 12),
+                _FocusPanel(focus),
+              ],
+            ],
+          ),
+          LabFormCard(
+            title: 'Waktu yang tercatat',
+            icon: Icons.schedule_outlined,
+            children: [
+              for (final step in timestamps.entries)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 7),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        step.value == null
+                            ? Icons.circle_outlined
+                            : Icons.circle,
+                        size: 12,
+                        color: step.value == null
+                            ? scheme.outline
+                            : scheme.primary,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: LabRecordValue(step.key, logbookWib(step.value)),
+                      ),
+                    ],
+                  ),
+                ),
+              if (entry['receipt_basis'] == 'RECEIPT_EVENT_TIME')
+                const Text(
+                  'Waktu penerimaan mengikuti catatan serah terima aplikasi, bukan tanggal tanam atau pengamatan.',
+                ),
+              if (entry['clock_issue'] == true)
+                const Text(
+                  'Periksa urutan tanggal di catatan asal. Waktu tunggu tidak diberi angka perkiraan.',
+                ),
+            ],
+          ),
+          LabFormCard(
+            title: 'Catatan asal',
+            icon: Icons.list_alt_outlined,
+            children: [
+              LabFieldGrid(
+                fields: [
+                  LabRecordValue(
+                    'Status catatan asal',
+                    logbookStatuses[entry['status']] ??
+                        entry['status'] as String?,
+                  ),
+                  LabRecordValue(
+                    'Label sampel',
+                    entry['sample_reference'] as String?,
+                  ),
+                  LabRecordValue(
+                    'Nomor permintaan',
+                    entry['request_code'] as String? ?? 'Tidak ada',
+                  ),
+                  LabRecordValue('Nomor uji', entry['run_code'] as String?),
+                  if (entry['attempt_no'] != null)
+                    LabRecordValue('Percobaan ke', "${entry['attempt_no']}"),
+                  if (entry['sample_to_submit_hours'] != null)
+                    LabRecordValue(
+                      'Sampel diterima sampai kirim hasil',
+                      monitoringHours(entry['sample_to_submit_hours']),
+                    ),
+                  if (entry['qa_tat_hours'] != null)
+                    LabRecordValue(
+                      'Kirim hasil sampai keputusan QA',
+                      monitoringHours(entry['qa_tat_hours']),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Buka menu catatan asal'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+typedef MonitoringFocus = ({
+  String label,
+  bool showHours,
+  num? hours,
+  String? since,
+  bool warning,
+});
+
+MonitoringFocus? monitoringFocus(Map<String, dynamic> entry) {
+  MonitoringFocus item(
+    String label, {
+    String? hoursKey,
+    String? sinceKey,
+    bool warning = false,
+  }) => (
+    label: label,
+    showHours: hoursKey != null,
+    hours: hoursKey == null ? null : entry[hoursKey] as num?,
+    since: sinceKey == null ? null : entry[sinceKey] as String?,
+    warning: warning,
+  );
+  if (entry['clock_issue'] == true) {
+    return item('Urutan waktu perlu diperiksa', warning: true);
+  }
+  return switch (entry['work_group']) {
+    'WAITING_SAMPLE' => item(
+      entry['received_at'] == null
+          ? 'Penerimaan sampel belum tercatat'
+          : 'Periksa status serah terima',
+    ),
+    'WAITING_QA' => item(
+      'Sudah menunggu QA',
+      hoursKey: 'waiting_qa_hours',
+      sinceKey: 'submitted_at',
+    ),
+    'RETEST' => item(
+      'Sejak QA meminta uji ulang',
+      hoursKey: 'retest_wait_hours',
+      sinceKey: 'decision_at',
+    ),
+    'WAITING_TEST' || 'TESTING' => item(
+      'Sejak sampel diterima, belum kirim hasil',
+      hoursKey: 'open_sample_hours',
+      sinceKey: 'received_at',
+    ),
+    'RETURNED' => item('Perlu perbaikan catatan', sinceKey: 'decision_at'),
+    _ => null,
+  };
 }
 
 Map<String, dynamic> validateMonitoringPage(Map<String, dynamic> p) {
@@ -159,6 +382,13 @@ class _LabMonitoringScreenState extends State<LabMonitoringScreen> {
   }
 
   void patch(String key, dynamic value) => setState(() => filters[key] = value);
+  void quickGroup(String group) {
+    if (busy || changed || applied['p_work_group'] == group) return;
+    final next = {...applied, 'p_work_group': group};
+    setState(() => filters = next);
+    load(next);
+  }
+
   Future<void> load(Map<String, dynamic> selected, [int offset = 0]) async {
     if (busy) return;
     final from = selected['p_from'] as String?,
@@ -286,82 +516,72 @@ class _LabMonitoringScreenState extends State<LabMonitoringScreen> {
     padding: const EdgeInsets.symmetric(vertical: 7),
     child: Text('$label: $value'),
   );
-  Widget row(Map<String, dynamic> e) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(logbookOrigins[e['entry_kind']] ?? '${e['entry_kind']}'),
-          Text(
-            '${e['lot_code']}',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          Text('${e['hybrid']} · ${e['method_name']}'),
-          Text(
-            monitoringGroups[e['work_group']]!,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          Text(
-            '${logbookStatuses[e['status']] ?? e['status']}${e['attempt_no'] == null ? '' : ' · Percobaan ${e['attempt_no']}'}',
-          ),
-          Text(
-            [
-              e['request_code'],
-              e['run_code'],
-              e['sample_reference'],
-            ].whereType<String>().join(' / '),
-          ),
-          metric('Sampel diterima / tersedia', logbookWib(e['received_at'])),
-          metric('Kirim ke QA', logbookWib(e['submitted_at'])),
-          metric('Keputusan QA', logbookWib(e['decision_at'])),
-          for (final k in {
-            'open_sample_hours': 'Sejak sampel diterima, belum kirim hasil',
-            'waiting_qa_hours': 'Sudah menunggu QA',
-            'retest_wait_hours': 'Sejak QA meminta uji ulang',
-            'sample_to_submit_hours': 'Sampel diterima sampai kirim hasil',
-            'qa_tat_hours': 'Kirim hasil sampai keputusan QA',
-          }.entries)
-            if (e[k.key] != null) metric(k.value, monitoringHours(e[k.key])),
-          if (e['receipt_basis'] == 'RECEIPT_EVENT_TIME')
-            const Text(
-              'Waktu penerimaan mengikuti catatan serah-terima aplikasi, bukan tanggal tanam/pengamatan.',
-            ),
-          if (e['clock_issue'] == true)
-            const Text(
-              'Urutan waktu perlu diperiksa pada catatan asal. Tidak diberi waktu tebakan.',
-            ),
-          OutlinedButton(
-            onPressed: () => e['entry_kind'].toString().startsWith('PLANT_')
-                ? Navigator.of(context).pop()
-                : Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => e['entry_kind'] == 'MC_DRAFT'
-                          ? const MoistureLabScreen()
-                          : e['entry_kind'] == 'ROUTINE'
-                          ? const RoutineLabScreen()
-                          : const LabLogbookScreen(),
-                    ),
-                  ),
-            child: const Text('Buka menu catatan asal'),
-          ),
-        ],
+  Future<void> openDetail(Map<String, dynamic> entry) async {
+    final source = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(builder: (_) => _MonitoringDetail(entry: entry)),
+    );
+    if (!mounted || source != true) return;
+    if (entry['entry_kind'].toString().startsWith('PLANT_')) {
+      Navigator.of(context).maybePop();
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => switch (entry['entry_kind']) {
+          'MC_DRAFT' => const MoistureLabScreen(),
+          'ROUTINE' => const RoutineLabScreen(),
+          _ => const LabLogbookScreen(),
+        },
       ),
-    ),
-  );
+    );
+  }
+
+  Widget row(Map<String, dynamic> e) {
+    final focus = monitoringFocus(e);
+    final source = [
+      logbookOrigins[e['entry_kind']] ?? e['entry_kind'],
+      e['run_code'] ?? e['request_code'],
+      if (e['attempt_no'] != null) 'Percobaan ${e['attempt_no']}',
+    ].whereType<String>().join(' · ');
+    return LabFormCard(
+      title: e['lot_code'] as String,
+      icon: Icons.inventory_2_outlined,
+      hint: "${e['hybrid']} · ${e['method_name']}",
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: WorkflowStatusBadge(
+            status: e['status'] as String,
+            label: monitoringGroups[e['work_group']],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(source, style: Theme.of(context).textTheme.bodySmall),
+        if (focus != null) ...[const SizedBox(height: 10), _FocusPanel(focus)],
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            onPressed: () => openDetail(e),
+            icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+            iconAlignment: IconAlignment.end,
+            label: const Text('Buka rincian waktu'),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Pemantauan kerja Lab')),
     body: ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        const Card(
-          child: Padding(
-            padding: EdgeInsets.all(16),
-            child: Text(
-              'Baca saja. Jumlah di sini adalah pekerjaan per percobaan uji, item yang belum mulai, atau draft. Bukan jumlah sampel fisik/lot. Satu sampel bisa dipakai beberapa metode. Histori Excel tidak dicampur. Belum ada batas SLA atau cap terlambat.',
-            ),
-          ),
+        const LabReadOnlyIntro(
+          title: 'Pantau pekerjaan Lab',
+          icon: Icons.query_stats,
+          description:
+              'Lihat status dan waktu yang sudah tercatat, tanpa mengisi rekap baru.',
         ),
         const SizedBox(height: 16),
         select(
@@ -384,27 +604,37 @@ class _LabMonitoringScreenState extends State<LabMonitoringScreen> {
           onChanged: (v) => patch('p_search', v),
           onSubmitted: (_) => load(filters),
         ),
-        select('Asal catatan', 'p_origin', {
-          'ALL': 'Semua asal',
-          'PLANT': 'Permintaan Plant',
-          'ROUTINE': 'Uji rutin Lab',
-          'MC': 'MC Lab',
-        }),
-        select('Metode', 'p_method', {
-          'ALL': 'Semua metode',
-          for (final m in catalog?['method_options'] as List? ?? [])
-            m['method_code'] as String: m['method_name'] as String,
-        }),
-        select('Kelompok pekerjaan', 'p_work_group', monitoringGroups),
-        select('Dasar tanggal', 'p_date_basis', {
-          'RECORDED': 'Pertama dicatat di aplikasi',
-          'RECEIVED': 'Sampel diterima / tersedia di Lab',
-          'REVIEWED': 'Keputusan QA',
-        }),
-        date('Dari tanggal (WIB)', 'p_from'),
-        date('Sampai tanggal (WIB)', 'p_to'),
-        const Text(
-          'Batas tanggal termasuk hari awal dan akhir. Catatan tanpa tanggal pada dasar yang dipilih tidak masuk rentang tanggal. Pilih Keputusan QA untuk rekap keputusan pada periode tertentu.',
+        ExpansionTile(
+          key: const PageStorageKey('monitor-filters'),
+          tilePadding: EdgeInsets.zero,
+          expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+          title: const Text('Filter lanjutan'),
+          children: [
+            select('Asal catatan', 'p_origin', {
+              'ALL': 'Semua asal',
+              'PLANT': 'Permintaan Plant',
+              'ROUTINE': 'Uji rutin Lab',
+              'MC': 'MC Lab',
+            }),
+            select('Metode', 'p_method', {
+              'ALL': 'Semua metode',
+              for (final m in catalog?['method_options'] as List? ?? [])
+                m['method_code'] as String: m['method_name'] as String,
+            }),
+            select('Kelompok pekerjaan', 'p_work_group', monitoringGroups),
+            select('Dasar tanggal', 'p_date_basis', {
+              'RECORDED': 'Pertama dicatat di aplikasi',
+              'RECEIVED': 'Sampel diterima / tersedia di Lab',
+              'REVIEWED': 'Keputusan QA',
+            }),
+            date('Dari tanggal (WIB)', 'p_from'),
+            date('Sampai tanggal (WIB)', 'p_to'),
+            const LabHelp(
+              label: 'Cara pakai filter tanggal',
+              text:
+                  'Hari awal dan akhir ikut dihitung. Catatan tanpa tanggal pada dasar yang dipilih tidak masuk hasil. Pilih Keputusan QA untuk rekap keputusan per periode.',
+            ),
+          ],
         ),
         Wrap(
           spacing: 12,
@@ -447,46 +677,98 @@ class _LabMonitoringScreenState extends State<LabMonitoringScreen> {
             '${page!['total']} pekerjaan cocok',
             style: Theme.of(context).textTheme.titleLarge,
           ),
+          Text('Dimuat ${logbookWib(page!['as_of'])}'),
           Text(
-            'Ringkasan seluruh hasil filter, bukan hanya halaman ini. Dimuat ${logbookWib(page!['as_of'])}. Waktu tidak berjalan otomatis; muat ulang untuk memperbarui.',
+            'Ditampilkan: ${[monitoringGroups[applied['p_work_group']], for (final site in page!['lab_sites'] as List)
+              if (site['id'] == applied['p_lab_site_id']) site['site_name'], if ((applied['p_search'] as String).trim().isNotEmpty) "Cari: ${(applied['p_search'] as String).trim()}"].whereType<String>().join(' · ')}',
           ),
-          for (final x in {
-            'waiting_sample': 'Menunggu sampel',
-            'waiting_test': 'Belum mulai uji',
-            'testing': 'Sedang dikerjakan',
-            'waiting_qa': 'Menunggu QA',
-            'retest': 'Perlu uji ulang',
-            'returned': 'Catatan dikembalikan',
-            'incomplete': 'Catatan belum lengkap',
-            'approved_analysis': 'Analisis disetujui QA',
-            'verified_mc': 'Catatan MC diverifikasi',
-          }.entries)
-            metric(x.value, page!['summary'][x.key]),
-          const Divider(),
-          const Text('Waktu pengerjaan pada hasil filter'),
-          metric(
-            'Rata-rata sampel sampai kirim hasil analisis',
-            '${monitoringHours(page!['summary']['sample_tat_hours'])} · ${page!['summary']['sample_tat_count']} percobaan dengan waktu lengkap',
+          const SizedBox(height: 8),
+          Semantics(
+            container: true,
+            label: 'Filter cepat kelompok pekerjaan',
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                for (final entry in monitoringQuickGroups.entries)
+                  ChoiceChip(
+                    key: ValueKey('monitor-quick-${entry.key}'),
+                    selected: applied['p_work_group'] == entry.key,
+                    label: Text(entry.value),
+                    onSelected: busy || changed
+                        ? null
+                        : (_) => quickGroup(entry.key),
+                  ),
+              ],
+            ),
           ),
-          metric(
-            'Rata-rata kirim hasil sampai keputusan QA',
-            '${monitoringHours(page!['summary']['qa_tat_hours'])} · ${page!['summary']['qa_tat_count']} percobaan dengan waktu lengkap',
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton(
+              onPressed: busy
+                  ? null
+                  : () => load(applied, page!['offset'] as int),
+              child: const Text('Muat ulang pemantauan'),
+            ),
           ),
-          metric(
-            'Rata-rata pemeriksaan catatan MC oleh QA',
-            '${monitoringHours(page!['summary']['mc_qa_hours'])} · ${page!['summary']['mc_qa_count']} catatan dengan waktu lengkap',
-          ),
-          metric(
-            'Keputusan QA yang meminta uji ulang',
-            page!['summary']['retest_rate_percent'] == null
-                ? 'Belum ada keputusan analisis'
-                : '${page!['summary']['retest_decisions']} dari ${page!['summary']['analytical_decisions']} keputusan (${page!['summary']['retest_rate_percent']}%)',
-          ),
-          const Text(
-            'MC tidak dicampur ke rata-rata atau persentase keputusan analisis. Revalidation bukan otomatis uji ulang QA. Riwayat uji ulang yang sudah punya percobaan lanjutan tidak dihitung aktif.',
-          ),
-          Text(
-            '${page!['summary']['missing_sample_time']} catatan belum punya waktu sampel; ${page!['summary']['missing_qa_time']} pekerjaan menunggu QA belum punya waktu kirim; ${page!['summary']['clock_issues']} catatan punya urutan waktu yang perlu diperiksa. Waktu yang belum lengkap tidak diganti nol.',
+          const SizedBox(height: 12),
+          ExpansionTile(
+            key: const PageStorageKey('monitor-summary'),
+            title: const Text('Ringkasan jumlah & waktu pengerjaan'),
+            tilePadding: EdgeInsets.zero,
+            expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Jumlah per percobaan atau draft. Waktu hanya sampai data dimuat, tanpa penilaian SLA.',
+              ),
+              LabMenuGrid(
+                cards: [
+                  for (final x in {
+                    'waiting_sample': 'Menunggu sampel',
+                    'waiting_test': 'Belum mulai uji',
+                    'testing': 'Sedang dikerjakan',
+                    'waiting_qa': 'Menunggu QA',
+                    'retest': 'Perlu uji ulang',
+                    'returned': 'Catatan dikembalikan',
+                    'incomplete': 'Catatan belum lengkap',
+                    'approved_analysis': 'Analisis disetujui QA',
+                    'verified_mc': 'Catatan MC diverifikasi',
+                  }.entries)
+                    LabMetricTile(
+                      title: x.value,
+                      value: '${page!['summary'][x.key]}',
+                    ),
+                ],
+              ),
+              const Divider(),
+              const Text('Waktu pengerjaan pada hasil filter'),
+              metric(
+                'Rata-rata sampel sampai kirim hasil analisis',
+                '${monitoringHours(page!['summary']['sample_tat_hours'])} · ${page!['summary']['sample_tat_count']} percobaan dengan waktu lengkap',
+              ),
+              metric(
+                'Rata-rata kirim hasil sampai keputusan QA',
+                '${monitoringHours(page!['summary']['qa_tat_hours'])} · ${page!['summary']['qa_tat_count']} percobaan dengan waktu lengkap',
+              ),
+              metric(
+                'Rata-rata pemeriksaan catatan MC oleh QA',
+                '${monitoringHours(page!['summary']['mc_qa_hours'])} · ${page!['summary']['mc_qa_count']} catatan dengan waktu lengkap',
+              ),
+              metric(
+                'Keputusan QA yang meminta uji ulang',
+                page!['summary']['retest_rate_percent'] == null
+                    ? 'Belum ada keputusan analisis'
+                    : '${page!['summary']['retest_decisions']} dari ${page!['summary']['analytical_decisions']} keputusan (${page!['summary']['retest_rate_percent']}%)',
+              ),
+              const LabHelp(
+                label: 'Cara membaca waktu',
+                text:
+                    'MC tidak masuk rata-rata atau persentase keputusan analisis. Revalidation bukan uji ulang QA. Uji ulang yang sudah punya percobaan lanjutan tidak dihitung aktif.',
+              ),
+              Text(
+                '${page!['summary']['missing_sample_time']} catatan belum punya waktu sampel; ${page!['summary']['missing_qa_time']} pekerjaan menunggu QA belum punya waktu kirim; ${page!['summary']['clock_issues']} catatan punya urutan waktu yang perlu diperiksa. Waktu yang belum lengkap tidak diganti nol.',
+              ),
+            ],
           ),
           if ((page!['entries'] as List).isEmpty)
             const Text(
@@ -521,12 +803,6 @@ class _LabMonitoringScreenState extends State<LabMonitoringScreen> {
                         (page!['offset'] as int) + (page!['limit'] as int),
                       ),
                 child: const Text('Berikutnya'),
-              ),
-              OutlinedButton(
-                onPressed: busy
-                    ? null
-                    : () => load(applied, page!['offset'] as int),
-                child: const Text('Muat ulang pemantauan'),
               ),
               TextButton(
                 onPressed: () => Navigator.of(context).push(

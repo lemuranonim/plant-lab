@@ -83,8 +83,8 @@ class _RoutineSampleReferenceFieldState
         ),
       Text(
         widget.locked
-            ? 'Uji ulang memakai referensi sampel semula; tidak dapat diganti.'
-            : 'Pilih label untuk lot ini atau isi sesuai label fisik. Pilihan hanya mengisi referensi, bukan waktu atau hasil uji.',
+            ? 'Label sumber terkunci.'
+            : 'Cocokkan dengan label fisik.',
       ),
     ],
   );

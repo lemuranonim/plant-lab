@@ -6,3 +6,11 @@ export type MoisturePage={drafts:MoistureDraft[];total:number;offset:number;has_
 export function emptyMoistureContent():MoistureContent {return {version:1,sample_reference:null,sample_type:null,received_at:null,measured_at:null,instrument:null,method:null,analyst_name:null,note:null,readings:[null,null,null]};}
 export const moistureNumber=(x:number|null)=>x===null?'Belum lengkap':new Intl.NumberFormat('id-ID',{maximumFractionDigits:6}).format(x);
 export const moistureStatus=(status:MoistureStatus)=>({DRAFT:'Draft',IN_REVIEW:'Menunggu verifikasi QA',RETURNED:'Dikembalikan untuk diperbaiki',VERIFIED_RECORD:'Catatan diverifikasi QA'})[status];
+export function isMoistureReading(value: number | null): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100;
+}
+export function moistureMeanPreview(readings: (number | null)[]) {
+  const valid = readings.filter(isMoistureReading);
+  return { entered: valid.length, mean: readings.length === 3 && valid.length === 3
+    ? valid.reduce((total, value) => total + value, 0) / 3 : null };
+}

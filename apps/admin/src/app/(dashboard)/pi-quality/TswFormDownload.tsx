@@ -1,6 +1,6 @@
 'use client';
 import {useState} from 'react';
-export default function TswFormDownload({record}:{record:{id:string;row_version:number}}){
+export default function TswFormDownload({record,compact=false}:{record:{id:string;row_version:number};compact?:boolean}){
  const [busy,setBusy]=useState(false),[error,setError]=useState('');
  async function download(format:'pdf'|'xlsx'){
   if(busy)return;setBusy(true);setError('');
@@ -13,5 +13,5 @@ export default function TswFormDownload({record}:{record:{id:string;row_version:
    const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`Form-TSW-PI-${record.id}-v${record.row_version}.${format}`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   }catch(e){setError(e instanceof Error?e.message:'Unduhan belum berhasil.');}finally{setBusy(false);}
  }
- return <section aria-label="Unduhan TSW sumber PI"><h3>Unduh form TSW</h3><p>Satu catatan, versi tersimpan {record.row_version}. Simpan perubahan sebelum diunduh. Status sumber PI ikut tercetak; bukan approval Lab atau pelepasan lot.</p><div style={{display:'flex',gap:12,flexWrap:'wrap',marginBlock:12}}><button disabled={busy} onClick={()=>void download('pdf')}>Unduh TSW PDF</button><button disabled={busy} onClick={()=>void download('xlsx')}>Unduh TSW Excel</button></div>{busy&&<p role="status">Menyiapkan form TSW…</p>}{error&&<p role="alert">{error}</p>}</section>;
+ return <section aria-label="Unduhan TSW sumber PI"><h3>Unduh form TSW</h3><p>{compact ? `Versi tersimpan ${record.row_version}.` : `Satu catatan, versi tersimpan ${record.row_version}. Simpan perubahan sebelum diunduh. Status sumber PI ikut tercetak; bukan approval Lab atau pelepasan lot.`}</p><div style={{display:'flex',gap:12,flexWrap:'wrap',marginBlock:12}}><button className={compact?'btn':undefined} disabled={busy} onClick={()=>void download('pdf')}>Unduh TSW PDF</button><button className={compact?'btn':undefined} disabled={busy} onClick={()=>void download('xlsx')}>Unduh TSW Excel</button></div>{busy&&<p role="status">Menyiapkan form TSW…</p>}{error&&<p role="alert">{error}</p>}</section>;
 }

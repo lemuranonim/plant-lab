@@ -10,6 +10,8 @@ void main() {
     expect(moistureMean([0, 0, 0]), 0);
     expect(moistureMean([1, 1, 1]), 1);
     expect(moistureMean([11.2, 11.3, 11.3]), closeTo(11.2666666666667, 1e-10));
+    expect(moistureMean([101, 11, 11]), isNull);
+    expect(moistureMean([double.nan, 11, 11]), isNull);
     expect(moistureNumber(0), '0');
     expect(moistureNumber(100), '100');
     expect(
@@ -80,12 +82,17 @@ void main() {
           scrollable: find.byType(Scrollable).first,
         );
         await tester.enterText(find.byKey(const ValueKey('mc-reading-0')), '0');
+        FocusManager.instance.primaryFocus?.unfocus();
+        await tester.pumpAndSettle();
+        expect(find.text('Pratinjau rata-rata · 1/3 terisi'), findsOneWidget);
+        expect(find.text('Belum lengkap'), findsOneWidget);
         final save = find.text('Simpan draft MC Lab');
         await tester.ensureVisible(save);
-        await tester.tap(save);
+        await tester.tap(save.hitTestable());
         await tester.pumpAndSettle();
         expect(calls.length, 1);
-        await tester.tap(save);
+        await tester.ensureVisible(save);
+        await tester.tap(save.hitTestable());
         await tester.pumpAndSettle();
         expect(calls.length, 2);
         expect(calls[0], calls[1]);
@@ -99,6 +106,60 @@ void main() {
       },
     );
   }
+  testWidgets(
+    'MC preview is complete at three valid readings and keeps lot pinned',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 830);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MoistureDraftEditor(
+            record: {
+              'id': 'memory',
+              'revision': 0,
+              'lot_id': 'memory-lot',
+              'lot_code': 'DEMO-DCS-024',
+              'hybrid': 'H59',
+              'stage_code': 'DCS',
+              'content': emptyMoistureContent(),
+            },
+            labSiteId: 'memory-lab',
+            loadReferences: (_, _) async => {},
+            saveDraft: (_) async =>
+                throw StateError('Preview must not save or submit'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final header = find.descendant(
+        of: find.byType(AppBar),
+        matching: find.text('DEMO-DCS-024'),
+      );
+      final save = find.byKey(const ValueKey('mc-save-draft'));
+      expect(save.hitTestable(), findsOneWidget);
+      final top = tester.getTopLeft(header);
+      await tester.tap(find.text('Pembacaan'));
+      await tester.pumpAndSettle();
+      for (var i = 0; i < 3; i++) {
+        final field = find.byKey(ValueKey('mc-reading-$i'));
+        await tester.ensureVisible(field);
+        await tester.enterText(field, const ['0', '11,2', '12,2'][i]);
+        await tester.pumpAndSettle();
+      }
+      expect(find.text('Pratinjau rata-rata · 3/3 terisi'), findsOneWidget);
+      expect(find.text('7,8%'), findsOneWidget);
+      expect(tester.getTopLeft(header), top);
+      expect(save.hitTestable(), findsOneWidget);
+      final last = find.byKey(const ValueKey('mc-reading-2'));
+      await tester.enterText(last, '');
+      await tester.pumpAndSettle();
+      expect(find.text('Pratinjau rata-rata · 2/3 terisi'), findsOneWidget);
+      expect(find.text('7,8%'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets('invalid MC cannot be saved as unknown', (tester) async {
     int calls = 0;
     await tester.pumpWidget(

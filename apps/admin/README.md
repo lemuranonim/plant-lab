@@ -55,6 +55,12 @@ unavailable RPCs fail closed. Only accounts with active, matching Plant/Lab
 assignments can enter the corresponding pilot. This does not change their
 existing permissions elsewhere in Advanta-CC.
 
+To enable the **Kirim via WhatsApp** action in the Lab pilot guide, set
+`LAB_SUPPORT_WHATSAPP` on the Lab server only (international number, digits
+only, e.g. `62...`). Leave it unset on Plant. This only opens a pre-filled
+WhatsApp draft; it does not send messages or store reports. Copying a report
+remains available without this setting.
+
 After the real-data/role checks, `NEXT_PUBLIC_PLANT_LAB_HOSTED_WRITES_ENABLED=true`
 opts the canonical workflow into the production build. It never enables legacy
 write routes. Current online-UAC submission UI offers Germination (Sand), whose

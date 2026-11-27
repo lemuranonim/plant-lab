@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:plant_lab/app/theme/app_theme.dart';
+import 'package:plant_lab/app/theme/lab_theme.dart';
+import 'package:plant_lab/core/config/app_config.dart';
 import 'package:plant_lab/core/access/access_context.dart';
 import 'package:plant_lab/core/access/access_context_provider.dart';
 import 'package:plant_lab/core/config/app_variant.dart';
 import 'package:plant_lab/features/lab_request/presentation/standalone_queue_screen.dart';
+import 'package:plant_lab/features/lab_request/presentation/lab_workspace_widgets.dart';
 import 'package:plant_lab/features/lab_request/presentation/workflow_presentation.dart';
 
 void main() {
@@ -47,12 +50,166 @@ void main() {
     );
   });
   test('action contrast is readable in both themes', () {
-    for (final theme in [AppTheme.light, AppTheme.dark]) {
+    for (final theme in [
+      AppTheme.light,
+      AppTheme.dark,
+      LabTheme.light,
+      LabTheme.dark,
+    ]) {
       final a = theme.colorScheme.primary.computeLuminance();
       final b = theme.colorScheme.onPrimary.computeLuminance();
       final ratio = ((a > b ? a : b) + .05) / ((a < b ? a : b) + .05);
       expect(ratio, greaterThanOrEqualTo(4.5));
+      final palette = theme.extension<LabPalette>();
+      if (palette != null) {
+        for (final status in [
+          'REQUESTED',
+          'TESTING',
+          'IN_REVIEW',
+          'RETEST',
+          'APPROVED',
+          'CLOSED',
+        ]) {
+          final tone = palette.status(status);
+          final x = tone.ink.computeLuminance();
+          final y = tone.surface.computeLuminance();
+          expect(
+            ((x > y ? x : y) + .05) / ((x < y ? x : y) + .05),
+            greaterThanOrEqualTo(4.5),
+            reason: status,
+          );
+        }
+      }
     }
+  });
+
+  testWidgets('Lab detail pins the lot and follows the current queue scope', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 850);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const lot = 'UJI-DCS-026';
+    var status = 'REQUESTED';
+    var inScope = true;
+    const access = AccessContext(
+      userId: 'MEMORY-ONLY',
+      primaryRoleName: 'Analis Lab',
+      modules: ['LAB'],
+      roles: [
+        AccessRole(
+          moduleCode: 'LAB',
+          roleCode: 'LAB_ANALYST',
+          roleName: 'Analis',
+        ),
+      ],
+      sites: [],
+      canAccessPlant: false,
+      canAccessLab: true,
+      canManageUsers: false,
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appVariantProvider.overrideWithValue(AppVariant.lab),
+          accessContextProvider.overrideWith((_) async => access),
+          standaloneQueueProvider.overrideWith(
+            (_) async => (
+              requests: [
+                if (inScope)
+                  PreviewLabRequest(
+                    requestId: 'local-request',
+                    requestCode: 'UJI-LR-001',
+                    lotCode: lot,
+                    testCodes: const ['GERMINATION'],
+                    status: status,
+                    requestedAt: '2026-11-07T12:00:00Z',
+                    instruction: List.filled(
+                      18,
+                      'Catatan pengiriman sampel.',
+                    ).join(' '),
+                  ),
+              ],
+              pairLookupFailed: false,
+              vigourLookupFailed: false,
+            ),
+          ),
+          standaloneQualityReferenceProvider.overrideWith((_) async => {}),
+        ],
+        child: MaterialApp(
+          theme: LabTheme.light,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: const TextScaler.linear(1.5)),
+            child: child!,
+          ),
+          home: const StandaloneQueueScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(StandaloneQueueScreen)),
+    );
+    final open = find.byKey(const ValueKey('lab-open-request-local-request'));
+    await tester.scrollUntilVisible(
+      open,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Terima permintaan'), findsNothing);
+    await tester.pumpAndSettle();
+    await tester.tap(open.hitTestable());
+    await tester.pumpAndSettle();
+
+    final header = find.descendant(
+      of: find.byType(AppBar),
+      matching: find.text(lot),
+    );
+    expect(header, findsOneWidget);
+    final accept = find.text('Terima permintaan');
+    expect(
+      accept,
+      AppConfig.canonicalWritesEnabled ? findsOneWidget : findsNothing,
+    );
+    final top = tester.getTopLeft(header);
+    final metadata = find.text('Rincian permintaan & pasangan lot');
+    await tester.ensureVisible(metadata);
+    await tester.tap(metadata);
+    await tester.pumpAndSettle();
+    final list = find.byType(ListView);
+    await tester.drag(list, const Offset(0, -350));
+    await tester.pumpAndSettle();
+    final scroll = find.descendant(of: list, matching: find.byType(Scrollable));
+    expect(
+      tester.state<ScrollableState>(scroll.first).position.pixels,
+      greaterThan(0),
+    );
+    expect(tester.getTopLeft(header), top);
+
+    status = 'ACCEPTED';
+    container.invalidate(standaloneQueueProvider);
+    await tester.pumpAndSettle();
+    expect(accept, findsNothing);
+    expect(
+      find.text(
+        AppConfig.canonicalWritesEnabled
+            ? 'Menunggu kiriman Plant'
+            : 'Lihat detail · baca saja',
+      ),
+      findsOneWidget,
+    );
+    inScope = false;
+    container.invalidate(standaloneQueueProvider);
+    await tester.pumpAndSettle();
+    expect(header, findsNothing);
+    expect(
+      find.text('Permintaan tidak tersedia dalam antrean Anda.'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
   });
 
   for (final role in [
@@ -123,7 +280,9 @@ void main() {
                 ),
               ],
               child: MaterialApp(
-                theme: dark ? AppTheme.dark : AppTheme.light,
+                theme: plant
+                    ? (dark ? AppTheme.dark : AppTheme.light)
+                    : (dark ? LabTheme.dark : LabTheme.light),
                 builder: (context, child) => MediaQuery(
                   data: MediaQuery.of(
                     context,
@@ -135,11 +294,40 @@ void main() {
             ),
           );
           await tester.pumpAndSettle();
-          expect(
-            find.text(workflowRoleGuide(plant, [role]).title),
-            findsOneWidget,
-          );
+          final guideTitle = workflowRoleGuide(plant, [role]).title;
+          if (plant) {
+            expect(find.text(guideTitle), findsOneWidget);
+          } else {
+            expect(find.textContaining(guideTitle), findsNothing);
+            await tester.tap(find.text('Bantuan antrean').hitTestable());
+            await tester.pumpAndSettle();
+            expect(find.textContaining(guideTitle), findsOneWidget);
+            await tester.tap(find.text('Tutup bantuan').hitTestable());
+            await tester.pumpAndSettle();
+          }
           expect(find.byType(NavigationBar), findsOneWidget);
+          expect(
+            find.byType(LabQueueHero),
+            plant ? findsNothing : findsOneWidget,
+          );
+          if (!plant) {
+            final routineLink = find.text('Catatan uji rutin & QA');
+            await tester.scrollUntilVisible(
+              routineLink,
+              140,
+              scrollable: find.byType(Scrollable).first,
+            );
+            expect(routineLink, findsOneWidget);
+            if (AppConfig.plantSampleRequestsEnabled) {
+              final samplesLink = find.text('Permintaan sampel ke Plant');
+              await tester.scrollUntilVisible(
+                samplesLink,
+                140,
+                scrollable: find.byType(Scrollable).first,
+              );
+              expect(samplesLink, findsOneWidget);
+            }
+          }
           expect(find.text('Terima permintaan'), findsNothing);
           await tester.scrollUntilVisible(
             find.byType(TextField),

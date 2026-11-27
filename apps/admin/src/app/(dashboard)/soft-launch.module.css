@@ -14,6 +14,11 @@
 .dialog label { display: grid; gap: 8px; font-size: .8rem; margin-block: 8px; }
 .dialog input, .dialog select, .dialog textarea { width: 100%; min-height: 44px; padding: 10px; color: var(--text-primary); background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; font: inherit; }
 .dialog textarea { min-height: 80px; resize: vertical; }
+.issueReferences { grid-column: 1 / -1; min-width: 0; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-base); }
+.issueReferences summary { min-height: 44px; padding: 12px; color: var(--text-primary); cursor: pointer; font-size: .85rem; font-weight: 600; }
+.issueReferences[open] summary { border-bottom: 1px solid var(--border); }
+.issueReferences .grid { margin: 0; padding: 4px 12px; }
+.reportActions { display: flex; flex-wrap: wrap; gap: 8px; }
 .notice { padding: 12px; margin-block: 12px; background: var(--bg-base); border-radius: 8px; }
 .dialog :focus-visible, .helpButton:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 @media(max-width: 600px) { .dialog { padding: 18px; } .grid { grid-template-columns: 1fr; } .dialogHeader { flex-direction: column; top: -18px; } .helpButton { font-size: .75rem; } }

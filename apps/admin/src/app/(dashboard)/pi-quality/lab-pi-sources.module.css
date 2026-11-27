@@ -1,0 +1,47 @@
+.page { max-width: 1200px; margin-inline: auto; display: grid; gap: 1rem; }
+.page, .dialog { min-width: 0; color: var(--text-primary); overflow-wrap: anywhere; }
+.page header h1 { margin-block: .5rem; }
+.page header p { margin-top: .45rem; color: var(--text-secondary); }
+.list, .cards { display: grid; min-width: 0; gap: .9rem; }
+.list h2 { font-size: 1.15rem; }
+.list h2 span { margin-inline-start: .4rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.cards { grid-template-columns: repeat(auto-fit, minmax(min(100%, 345px), 1fr)); align-items: start; }
+.card { min-width: 0; display: grid; gap: .75rem; padding: clamp(.85rem, 2vw, 1.2rem); border: 1px solid var(--border); border-radius: var(--lab-radius); background: var(--bg-surface); box-shadow: var(--shadow-sm); }
+.topline { display: flex; gap: .65rem; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; }
+.topline h3 { font: 700 1.08rem var(--lab-mono); margin-bottom: .3rem; }
+.topline p, .caption { font-size: .85rem; color: var(--text-muted); }
+.badge { padding: .3rem .65rem; border-radius: 999px; color: var(--lab-neutral); background: var(--lab-neutral-bg); font-size: .76rem; font-weight: 700; }
+.badge[data-source-status="VERIFIED"] { color: var(--lab-brass); background: var(--lab-brass-bg); }
+.badge[data-source-status="SUBMITTED"] { color: var(--lab-qa); background: var(--lab-qa-bg); }
+.badge[data-source-status="REVISION_REQUIRED"] { color: var(--lab-retest); background: var(--lab-retest-bg); }
+.reading { display: grid; align-items: start; gap: .3rem; background: var(--lab-soft); padding: .75rem .85rem; border-radius: var(--lab-input-radius); }
+.reading p:first-child { color: var(--text-secondary); font-size: .85rem; }
+.reading strong { font: 700 clamp(1.4rem, 3.5vw, 1.8rem) var(--lab-mono); font-variant-numeric: tabular-nums; }
+.reading span { color: var(--text-secondary); }
+.actions, .requests, .pagination { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+.requests, .history { list-style: none; padding: 0; margin: 0; }
+.requests li, .actions, .requests { min-width: 0; }
+.requestCode { display: inline-block; padding: .3rem .6rem; background: var(--lab-sunken); border-radius: 999px; color: var(--text-secondary); font-size: .8rem; font-family: var(--lab-mono); }
+.detail { border-top: 1px solid var(--border); }
+.detail > summary { display: list-item; cursor: pointer; color: var(--accent-dark); font-weight: 650; padding-block: .75rem; }
+.detail :is(dl, .evidence, .history) { margin-bottom: .65rem; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: .65rem; margin: .25rem 0 0; }
+.facts dt { color: var(--text-muted); font-size: .8rem; }
+.facts dd { margin: .18rem 0 0; font-size: .9rem; }
+.history li { border-top: 1px solid var(--border); padding: .55rem 0; }
+.history p, .evidence h4 { margin-block: .35rem; }
+.pagination { justify-content: flex-end; }
+.pagination span { color: var(--text-muted); font-size: .85rem; }
+.page :global(.btn), .dialog :global(.btn) { min-height: 44px; max-width: 100%; overflow-wrap: anywhere; }
+.error, .notice { padding: .75rem; border-radius: var(--lab-input-radius); }
+.error { color: var(--danger); background: var(--lab-retest-bg); }
+.error button { margin-top: .5rem; }
+.notice { color: var(--accent-dark); background: var(--lab-soft); }
+.dialog { width: min(36rem, calc(100% - 2rem)); max-height: calc(100dvh - 2rem); overflow: auto; margin: auto; border: 1px solid var(--border); border-radius: var(--lab-radius); background: var(--bg-surface); padding: 1rem; }
+.dialog::backdrop { background: color-mix(in srgb, var(--lab-closed) 60%, transparent); }
+.review, .review fieldset, .review label { display: grid; gap: .6rem; }
+.review fieldset { min-width: 0; border: 0; }
+.review label { min-width: 0; }
+.review :is(select, textarea) { width: 100%; min-height: 44px; padding: .6rem; background: var(--bg-surface); color: var(--text-primary); border: 1px solid var(--border); border-radius: var(--lab-input-radius); font: inherit; }
+.review textarea { min-height: 90px; resize: vertical; }
+@media (max-width: 550px) { .pagination { justify-content: flex-start; } }

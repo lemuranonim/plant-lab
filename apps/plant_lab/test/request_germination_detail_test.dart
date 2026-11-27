@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:plant_lab/app/theme/lab_theme.dart';
+import 'package:plant_lab/features/lab_request/presentation/lab_workspace_widgets.dart';
 import 'package:plant_lab/features/lab_request/presentation/request_germination_detail_screen.dart';
 
 Map<String, dynamic> fixture({bool qa = false}) => {
@@ -81,6 +83,7 @@ void main() {
           scrollable: find.byType(Scrollable).first,
         );
         await t.enterText(target, '0');
+        await t.pumpAndSettle();
         final save = find.widgetWithText(
           FilledButton,
           'Simpan rincian pengamatan',
@@ -95,8 +98,13 @@ void main() {
         await t.tap(save);
         await t.pumpAndSettle();
         expect(writes.length, 1);
-        await t.ensureVisible(save);
-        await t.tap(save);
+        await t.scrollUntilVisible(
+          save.hitTestable(),
+          180,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await t.pumpAndSettle();
+        await t.tap(save.hitTestable());
         await t.pumpAndSettle();
         expect(writes.length, 2);
         expect(writes[0], writes[1]);
@@ -154,6 +162,7 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     await t.enterText(target, '1.5');
+    await t.pumpAndSettle();
     final save = find.widgetWithText(FilledButton, 'Simpan rincian pengamatan');
     await t.scrollUntilVisible(
       save,
@@ -165,7 +174,65 @@ void main() {
     await t.tap(save);
     await t.pumpAndSettle();
     expect(calls, 0);
+    expect(
+      find.textContaining('kosong hanya jika belum diamati'),
+      findsOneWidget,
+    );
   });
+  testWidgets('QA reads stored counts as text and can jump to decision', (
+    t,
+  ) async {
+    t.view.physicalSize = const Size(320, 780);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.resetPhysicalSize);
+    addTearDown(t.view.resetDevicePixelRatio);
+    final content = emptyRequestGerminationDetail();
+    (content['observations'] as List).first['abnormal'] = 0;
+    await t.pumpWidget(
+      MaterialApp(
+        theme: LabTheme.light,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: const TextScaler.linear(1.5)),
+          child: child!,
+        ),
+        home: RequestGerminationDetailScreen(
+          requestId: 'memory-request',
+          runCode: 'LT-MEMORY',
+          canApprove: false,
+          command: (name, _) async {
+            expect(name, 'get_request_germination_detail');
+            return {...fixture(qa: true), 'content': content};
+          },
+        ),
+      ),
+    );
+    await t.pumpAndSettle();
+    const zero = ValueKey('request-count-0-abnormal');
+    const empty = ValueKey('request-count-0-normal');
+    expect(t.widget<LabRecordValue>(find.byKey(zero)).value, '0');
+    expect(
+      find.descendant(
+        of: find.byKey(empty),
+        matching: find.text('Belum dicatat'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Pilih tanggal / jam'), findsNothing);
+    expect(find.byType(TextField), findsNWidgets(2));
+    final jump = find.text('Ke keputusan QA');
+    await t.ensureVisible(jump);
+    await t.tap(jump.hitTestable());
+    await t.pumpAndSettle();
+    expect(
+      find.text('Pemeriksaan QA · revisi 2').hitTestable(),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Approval ditahan'), findsOneWidget);
+    expect(t.takeException(), isNull);
+  });
+
   testWidgets(
     'independent QA needs actual name and confirmation; review retry stable',
     (t) async {
@@ -216,7 +283,11 @@ void main() {
       await t.tap(save);
       await t.pumpAndSettle();
       expect(writes.length, 1);
-      await t.scrollUntilVisible(save,200,scrollable:find.byType(Scrollable).first);
+      await t.scrollUntilVisible(
+        save,
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
       await t.ensureVisible(save);
       await t.tap(save);
       await t.pumpAndSettle();

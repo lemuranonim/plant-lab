@@ -92,6 +92,83 @@
 .newRequest .form > small, .newRequest .form > p, .newRequest .form > fieldset, .newRequest .form > button { grid-column: 1 / -1; }
 .newRequest .form > button { justify-self: start; }
 .requestCard :focus-visible, .toolbar :focus-visible, .newRequest :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.labQueue { min-width: 0; }
+.labQueue .eyebrow { color: var(--accent-dark, var(--text-muted)); }
+.labQueue .roleGuide, .labQueue .requestCard, .labQueue .empty { border-radius: var(--lab-radius, 16px); box-shadow: var(--shadow-sm); }
+.labQueue .roleGuide { border-left: 1px solid var(--border); }
+.labQueue .guideIcon { background: var(--lab-mint, var(--bg-base)); color: var(--accent-dark); }
+.labQueue .routineAction { display: flex; justify-content: space-between; align-items: center; background: var(--lab-soft, var(--bg-base)); flex-wrap: wrap; }
+.labQueue .routineAction :global(.btn) { flex: 0 0 auto; }
+.labQueue .metrics > div { flex-direction: column; align-items: flex-start; gap: 5px; box-shadow: var(--shadow-sm); border-radius: var(--lab-radius, 16px); }
+.labQueue .metrics strong, .labQueue .cardHeading h3, .labQueue .resultPreview strong { font-family: var(--lab-mono, monospace); font-variant-numeric: tabular-nums; }
+.labQueue .metrics [data-queue-metric="active"] strong { color: var(--lab-info, var(--text-primary)); }
+.labQueue .metrics [data-queue-metric="review"] strong { color: var(--lab-qa, var(--text-primary)); }
+.labQueue .metrics [data-queue-metric="approved"] strong { color: var(--accent-dark); }
+.labQueue .metrics strong { line-height: 1.2; }
+.labQueue .toolbar { border: 1px solid var(--border); border-radius: var(--lab-radius, 16px); background: var(--bg-surface); padding: 16px; }
+.labQueue .nextStep { background: var(--lab-soft, var(--bg-base)); }
+.labQueue .statusBadge { border-color: transparent; color: var(--lab-info, var(--text-primary)); background: var(--lab-info-bg, var(--bg-base)); }
+.labQueue .statusBadge[data-raw-status="APPROVED"] { color: var(--lab-brass, var(--text-primary)); background: var(--lab-brass-bg, var(--bg-base)); }
+.labQueue .statusBadge[data-raw-status="IN_REVIEW"] { color: var(--lab-qa, var(--text-primary)); background: var(--lab-qa-bg, var(--bg-base)); }
+.labQueue .statusBadge[data-raw-status="RETEST"] { color: var(--lab-retest, var(--text-primary)); background: var(--lab-retest-bg, var(--bg-base)); }
+.labQueue .statusBadge:is([data-raw-status="REQUESTED"], [data-raw-status="ACCEPTED"], [data-raw-status="PREPARED"], [data-raw-status="SENT"]) { color: var(--lab-neutral, var(--text-secondary)); background: var(--lab-neutral-bg, var(--bg-base)); }
+.labQueue .statusBadge[data-status="closed"] { color: var(--lab-closed, var(--text-secondary)); background: var(--lab-closed-bg, var(--bg-base)); }
+.labQueue .resultPreview span { color: var(--lab-brass, var(--text-muted)); }
+.labQueue .sectionHeading :global(.btn) { flex-shrink: 0; }
+.overviewTable { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; border: 1px solid var(--border); border-radius: var(--lab-radius, 16px); background: var(--bg-surface); text-align: left; }
+.overviewTable > thead > tr > th, .overviewRow > :is(th, td) { padding: 9px 12px; font-size: .82rem; overflow-wrap: anywhere; }
+.overviewTable > thead > tr > th { background: var(--lab-soft, var(--bg-base)); color: var(--text-secondary); }
+.overviewTable > thead > tr > th:first-child { width: 27%; border-start-start-radius: var(--lab-radius, 16px); }
+.overviewTable > thead > tr > th:nth-child(2) { width: 16%; }
+.overviewTable > thead > tr > th:nth-child(3) { width: 18%; }
+.overviewTable > thead > tr > th:last-child { width: 15%; border-start-end-radius: var(--lab-radius, 16px); }
+.overviewRow + .overviewRow > :is(th, td) { border-top: 1px solid var(--border); }
+.overviewRow:focus-within, .overviewRow:hover { background: var(--lab-soft, var(--bg-base)); }
+.overviewRow th { text-align: left; }
+.overviewRow small { display: block; margin-top: 2px; font-weight: 500; color: var(--text-muted); }
+.queueLot { font-family: var(--lab-mono, monospace); font-size: .93rem; color: var(--text-primary); }
+.rowCue { color: var(--text-secondary); }
+.openColumn :global(.btn) { min-height: 44px; }
+.detailDrawer { margin: 0 0 0 auto; inset: 0 0 0 auto; width: min(680px, 100%); max-width: 100%; height: 100%; max-height: 100%; padding: 0; background: var(--bg-base); color: var(--text-primary); border: 0; border-inline-start: 1px solid var(--border); box-shadow: var(--shadow-md); overflow: hidden; }
+.detailDrawer[open] { display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.detailDrawer::backdrop { background: rgb(0 20 12 / .52); }
+.drawerHeading { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; padding: 12px clamp(14px, 3vw, 26px); border-bottom: 1px solid var(--border); background: var(--lab-hero, var(--bg-surface)); }
+.drawerIdentity { min-width: 0; overflow-wrap: anywhere; }
+.drawerHeading h2 { margin: 3px 0; font: 700 clamp(1.1rem, 4vw, 1.5rem) var(--lab-mono, monospace); }
+.drawerIdentity > :last-child { color: var(--text-muted); font-size: .78rem; }
+.drawerMeta { grid-column: 1/-1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--text-secondary); font-size: .82rem; }
+.closeDetail { width: 44px; min-width: 44px; min-height: 44px; padding: 0 !important; font-size: 1.4rem; align-self: start; }
+.drawerBody { min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 0 clamp(14px, 3vw, 26px) 1.1rem; scroll-padding-block-start: 65px; }
+.detailDrawer .requestCard { padding: clamp(12px, 4vw, 24px); }
+.detailTabs { position: sticky; z-index: 1; top: 0; display: flex; gap: 6px; overflow-x: auto; padding: 9px 4px; margin: 0 -4px 10px; background: var(--bg-base); }
+.detailTabs button { min-height: 44px; flex: 1 0 auto; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--lab-input-radius, 12px); background: var(--bg-surface); color: var(--text-secondary); cursor: pointer; font: inherit; font-weight: 650; }
+.detailTabs button:hover { color: var(--accent-dark); }
+.detailTabs [aria-selected="true"] { color: var(--accent-dark); background: var(--lab-mint, var(--bg-surface)); border-color: var(--accent); }
+.quickObservation { margin-block-end: 10px; }
+.detailTabPanel[hidden] { display: none; }
+.detailSection { border: 1px solid var(--border); border-radius: var(--lab-radius, 16px); background: var(--bg-surface); color: var(--text-primary); padding: clamp(12px, 4vw, 20px); line-height: 1.6; }
+.detailSection > p { margin-block: 6px 14px; color: var(--text-secondary); }
+.detailSection h3 { font-size: 1rem; }
+.detailSection h4 { font-size: .92rem; margin-bottom: 6px; }
+.detailSection section { margin-top: 12px; padding: 12px; background: var(--lab-soft, var(--bg-base)); border-radius: var(--lab-input-radius, 12px); }
+.detailSection > details { padding: 8px 0; }
+.detailSection summary { min-height: 44px; padding-block: 10px; cursor: pointer; font-weight: 650; }
+.detailSection :is(ul,ol) { padding-inline-start: 22px; }
+.detailSection li + li { margin-top: 8px; }
+@media (max-width: 1150px) {
+  .overviewTable { display: block; background: transparent; border: 0; }
+  .overviewTable thead { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); }
+  .overviewTable tbody { display: grid; gap: 12px; }
+  .overviewRow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); padding: 12px; border: 1px solid var(--border); border-radius: var(--lab-radius, 16px); background: var(--bg-surface); }
+  .overviewRow > :is(th, td), .overviewRow + .overviewRow > :is(th, td) { border: 0; padding: 5px 7px; }
+  .overviewRow > th { grid-column: 1 / -1; }
+  .overviewRow > .openColumn { align-self: end; justify-self: end; }
+  .overviewRow td[data-column]::before { display: block; margin-bottom: 5px; content: attr(data-column); color: var(--text-muted); font-size: .72rem; font-weight: 700; }
+}
+@media (max-width: 380px) {
+  .labQueue .sectionHeading { flex-wrap: wrap; }
+  .labQueue .metrics > div { padding-inline: 9px; overflow-wrap: anywhere; }
+}
 @media (max-width: 600px) {
   .metrics { gap: 8px; }
   .metrics > div { flex-direction: column; align-items: flex-start; gap: 6px; padding: 12px; }

@@ -1,12 +1,15 @@
 'use client';
 
-import {useRef,useState,type FormEvent} from 'react';
+import {useEffect,useRef,useState,type FormEvent} from 'react';
 import {createClient} from '@/lib/supabase/client';
 import {isolatedApiSchema} from '@/lib/supabase/config';
 import {logbookWib} from '@/lib/labLogbook';
-import {parseSamplePage,type SamplePage,type SampleSite,type SampleRequestRow} from '@/lib/plantSampleRequests';
+import {labSampleQuickFilters,parseSamplePage,sampleLabelMatch,type SamplePage,type SampleSite,type SampleRequestRow} from '@/lib/plantSampleRequests';
 import styles from '../lab-routine/routine.module.css';
 import cards from '../lab-logbook/logbook.module.css';
+import local from './sample-requests.module.css';
+import LabSampleCard, { SampleLabelFacts } from './LabSampleCard';
+import { LabHelp } from '../LabUi';
 
 type Lot={id:string;lot_code:string;hybrid:string;stage_code:string;plant_site:string};
 type Filter={site:string|null;search:string;status:string};
@@ -16,6 +19,7 @@ const statuses:Record<string,string>={ALL:'Semua',ACTIVE:'Belum selesai',REQUEST
 const actions:Record<Action,string>={CREATE:'Kirim permintaan',SEND:'Catat sudah dikirim',RECEIVE:'Konfirmasi sampel diterima',DECLINE:'Tidak bisa memenuhi',CANCEL:'Batalkan permintaan'};
 const initial:Filter={site:null,search:'',status:'ACTIVE'};
 const rejected=new Set(['22023','42501','55000','23505']);
+const incompleteMessage='Lengkapi isian dan konfirmasi. Untuk penerimaan, label fisik harus sama dengan label kiriman.';
 function message(code?:string){return code==='42501'?'Akses atau lokasi tidak sesuai.':code==='55000'?'Status sudah berubah. Muat ulang daftar untuk melihat catatan terbaru.':code==='23505'?'Tindakan ini sudah tercatat dengan rincian lain. Muat ulang daftar.':'Periksa isian, termasuk label fisik dan berat.';}
 
 export default function SampleRequests({module,writesEnabled,initialPage}:{module:'PLANT'|'LAB';writesEnabled:boolean;initialPage:SamplePage|null}){
@@ -25,6 +29,10 @@ export default function SampleRequests({module,writesEnabled,initialPage}:{modul
  const [lot,setLot]=useState<Lot|null>(null),[lotQuery,setLotQuery]=useState(''),[searchedLot,setSearchedLot]=useState(''),[lots,setLots]=useState<Lot[]>([]),[lotMore,setLotMore]=useState(false),[lotOffset,setLotOffset]=useState(0);
  const [editorError,setEditorError]=useState(''),[confirmed,setConfirmed]=useState(false);
  const lock=useRef(false);
+ const editorHeading=useRef<HTMLHeadingElement>(null);
+ useEffect(()=>{
+  if(lab&&editor){editorHeading.current?.focus({preventScroll:true});editorHeading.current?.scrollIntoView({block:'start'});}
+ },[lab,editor]);
  async function load(f:Filter,offset=0){
   if(lock.current)return;
   lock.current=true;setBusy(true);setError('');setFilter(f);setData(null);
@@ -56,7 +64,7 @@ export default function SampleRequests({module,writesEnabled,initialPage}:{modul
   const action=editor.action, weighs=action==='SEND'||action==='RECEIVE';
   const amount=weight.trim().replace(',','.');
   if(!savedArgs&&(!note.trim()||!confirmed||(action==='CREATE'&&!lot)||(weighs&&(!label.trim()||!/^[0-9]{1,9}(\.[0-9]{1,3})?$/.test(amount)||Number(amount)<=0))||(action==='RECEIVE'&&label.trim()!==editor.row?.sample_label))){
-   setEditorError('Lengkapi isian dan konfirmasi. Untuk penerimaan, label fisik harus sama dengan label kiriman.');return;
+   setEditorError(incompleteMessage);return;
   }
   lock.current=true;setBusy(true);setEditorError('');
   const args=savedArgs??{p_module:module,p_action:action,p_action_id:crypto.randomUUID(),p_request_id:editor.row?.id??null,p_lab_site_id:action==='CREATE'?data.selected_site_id:null,p_lot_id:action==='CREATE'?lot?.id:null,p_note:note.trim(),p_sample_label:weighs?label.trim():null,p_grams:weighs?Number(amount):null};
@@ -73,8 +81,10 @@ export default function SampleRequests({module,writesEnabled,initialPage}:{modul
  }
  const canWrite=!!data?.can_write&&writesEnabled;
  const weighs=editor?.action==='SEND'||editor?.action==='RECEIVE';
+ const labelMatch=sampleLabelMatch(label,editor?.row?.sample_label);
  return <div className={styles.workspace}>
-  <header><p className={styles.eyebrow}>SERAH TERIMA SAMPEL</p><h1>{lab?'Permintaan sampel ke Plant':'Permintaan sampel dari Lab'}</h1><p>{lab?'Minta sampel lot yang sudah tercatat. Konfirmasi setelah label fisik cocok dan sampel benar-benar diterima.':'Lihat permintaan Lab untuk lokasi Anda. Catat pengiriman hanya setelah sampel benar-benar dikirim.'} Menu ini tidak memulai uji atau melepas lot.</p></header>
+  <header><p className={styles.eyebrow}>SERAH TERIMA SAMPEL</p><h1>{lab?'Permintaan sampel ke Plant':'Permintaan sampel dari Lab'}</h1><p>{lab?'Minta sampel dan cocokkan setelah sampel fisik tiba.':'Lihat permintaan Lab untuk lokasi Anda. Catat pengiriman hanya setelah sampel benar-benar dikirim. Menu ini tidak memulai uji atau melepas lot.'}</p></header>
+  {lab&&<LabHelp label="Cara serah terima"><p>Konfirmasi hanya setelah sampel fisik tiba dan label cocok. Serah terima tidak memulai uji atau melepas lot.</p></LabHelp>}
   <form className={styles.panel} onSubmit={e=>{e.preventDefault();void load({...filter,search:search.trim()});}}>
    <h2>Cari permintaan</h2><fieldset className={styles.fields} disabled={busy||!!editor}>
     <label>{lab?'Lokasi Lab':'Lokasi Plant'}<select value={filter.site??''} onChange={e=>void load({...filter,site:e.target.value})}>{!sites.length&&<option value="">Sesuai penugasan</option>}{sites.map(s=><option key={s.id} value={s.id}>{s.site_name}</option>)}</select></label>
@@ -85,17 +95,26 @@ export default function SampleRequests({module,writesEnabled,initialPage}:{modul
   {notice&&<p role="status">{notice}</p>}{busy&&<p role="status">Memuat…</p>}
   {error&&<div className={styles.notice} role="alert">{error} <button className="btn" onClick={()=>void load(filter)}>Muat ulang</button></div>}
   {editor&&<section className={styles.panel} aria-label={actions[editor.action]}>
-   <h2>{actions[editor.action]}</h2>
+   <h2 ref={editorHeading} tabIndex={lab?-1:undefined} data-lab-jump={lab?'':undefined}>{actions[editor.action]}</h2>
    {editor.row&&<p>Lot {editor.row.lot_code} · {editor.row.plant_site} → {editor.row.lab_site}</p>}
    {editor.action==='CREATE'&&<form className={styles.search} onSubmit={e=>{e.preventDefault();void findLots(lotQuery.trim());}}><label>Cari lot untuk diminta<input maxLength={100} disabled={busy||!!savedArgs} value={lotQuery} onChange={e=>setLotQuery(e.target.value)}/></label><button className="btn" disabled={busy||!!savedArgs}>Cari lot</button></form>}
    {editor.action==='CREATE'&&<><p>{lot?'Dipilih: '+lot.lot_code+' · '+lot.plant_site:'Pilih lot yang benar. Tujuan otomatis mengikuti Plant pemilik lot.'}</p>
     {!savedArgs&&<><div className={styles.lots}>{lots.map(l=><button type="button" key={l.id} className={styles.lot} aria-pressed={lot?.id===l.id} disabled={busy} onClick={()=>setLot(l)}><strong>{l.lot_code}</strong><span>{l.hybrid} · {l.stage_code} · {l.plant_site}</span></button>)}</div>
     <div className={styles.actions}>{lotOffset>0&&<button className="btn" disabled={busy} onClick={()=>void findLots(searchedLot,lotOffset-50)}>Lot sebelumnya</button>}{lotMore&&<button className="btn" disabled={busy} onClick={()=>void findLots(searchedLot,lotOffset+50)}>Lot berikutnya</button>}</div></>}
    </>}
-   {editor.action==='RECEIVE'&&<p>Label kiriman Plant: <strong>{editor.row?.sample_label}</strong>. Jika berbeda, jangan konfirmasi penerimaan; hubungi Plant.</p>}
+   {editor.action==='RECEIVE'&&editor.row&&<div className={local.matchFacts}>
+    <SampleLabelFacts row={editor.row}/>
+    <p>Bandingkan dengan label fisik. Catat berat yang ditimbang di Lab pada kolom di bawah.</p>
+   </div>}
    <form onSubmit={save}>
     <fieldset className={styles.fields} disabled={busy||!!savedArgs}>
-     {weighs&&<><label>Label pada sampel fisik<input required maxLength={120} value={label} onChange={e=>setLabel(e.target.value)}/></label>
+     {weighs&&<><div><label>Label pada sampel fisik<input required maxLength={120} value={label} onChange={e=>{
+       setLabel(e.target.value);if(editor.action==='RECEIVE'&&editorError===incompleteMessage)setEditorError('');
+     }}
+       aria-describedby={editor.action==='RECEIVE'?'lab-label-check':undefined}/></label>
+       {editor.action==='RECEIVE'&&<p id="lab-label-check" className={local.matchStatus} data-state={labelMatch} aria-live="polite">
+         {labelMatch==='empty'?'Isi sesuai label pada sampel fisik.':labelMatch==='match'?'Label cocok dengan kiriman.':'Label berbeda. Jangan konfirmasi; hubungi Plant.'}
+       </p>}</div>
       <label>Berat aktual (gram)<input required inputMode="decimal" value={weight} onChange={e=>setWeight(e.target.value)}/></label></>}
      <label>{editor.action==='CREATE'?'Keperluan sampel':weighs?'Kondisi kemasan/sampel':'Alasan'}<textarea required maxLength={500} value={note} onChange={e=>setNote(e.target.value)}/></label>
      <label className={styles.check}><input required type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>{editor.action==='SEND'?'Sampel benar-benar sudah dikirim.':editor.action==='RECEIVE'?'Sampel fisik sudah diterima dan labelnya cocok.':'Saya sudah memeriksa lot dan rincian tindakan ini.'}</label>
@@ -107,15 +126,27 @@ export default function SampleRequests({module,writesEnabled,initialPage}:{modul
   </section>}
   {data&&<section className={styles.panel}>
    <h2>{data.total} permintaan</h2>
+   {lab&&<>
+    <p className={local.scope}>{sites.find(s=>s.id===filter.site)?.site_name ?? 'Sesuai penugasan'} · {statuses[filter.status]}{filter.search&&` · Cari: ${filter.search}`}</p>
+    <div className={local.quick} role="group" aria-label="Filter cepat sampel">
+      {labSampleQuickFilters.map(([key,name])=><button className="btn" type="button" key={key}
+        disabled={busy||!!editor} aria-pressed={filter.status===key}
+        onClick={()=>{if(filter.status!==key)void load({...filter,status:key});}}>{name}</button>)}
+    </div>
+   </>}
    {!data.rows.length&&<p>Tidak ada permintaan pada lokasi dan filter ini.</p>}
-   <div className={cards.entries}>{data.rows.map(row=><article key={row.id} className={cards.entry}>
+   <div className={cards.entries}>{data.rows.map(row=>lab
+    ? <LabSampleCard key={row.id} row={row} disabled={busy}
+        onReceive={canWrite&&!editor&&row.status==='SENT'?()=>open('RECEIVE',row):undefined}
+        onCancel={canWrite&&!editor&&row.status==='REQUESTED'?()=>open('CANCEL',row):undefined}/>
+    : <article key={row.id} className={cards.entry}>
     <h3>{row.lot_code} · {row.hybrid}</h3><p><strong>{statuses[row.status]}</strong></p>
     <p>{row.plant_site} → {row.lab_site}</p><p>Keperluan: {row.purpose} · {logbookWib(row.requested_at)}</p>
     {row.sample_label&&<p>Label: <strong>{row.sample_label}</strong></p>}
     {row.sent_at&&<p>Dikirim: {row.sent_grams} g · {row.sent_note} · {logbookWib(row.sent_at)}</p>}
     {row.received_at&&<p>Diterima: {row.received_grams} g · {row.received_note} · {logbookWib(row.received_at)}</p>}
     {row.closure_note&&<p>Alasan: {row.closure_note}</p>}
-    {canWrite&&!editor&&<div className={styles.actions}>{(lab?(row.status==='SENT'?['RECEIVE']:row.status==='REQUESTED'?['CANCEL']:[]):row.status==='REQUESTED'?['SEND','DECLINE']:[]).map(action=><button key={action} className="btn" disabled={busy} onClick={()=>open(action as Action,row)}>{actions[action as Action]}</button>)}</div>}
+    {canWrite&&!editor&&<div className={styles.actions}>{(row.status==='REQUESTED'?['SEND','DECLINE']:[]).map(action=><button key={action} className="btn" disabled={busy} onClick={()=>open(action as Action,row)}>{actions[action as Action]}</button>)}</div>}
    </article>)}</div>
    <div className={styles.actions}><button className="btn" disabled={busy||!!editor||data.offset===0} onClick={()=>void load(filter,Math.max(0,data.offset-data.limit))}>Sebelumnya</button><button className="btn" disabled={busy||!!editor||!data.has_more} onClick={()=>void load(filter,data.offset+data.limit)}>Berikutnya</button></div>
   </section>}

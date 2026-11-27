@@ -14,9 +14,11 @@ Map<String, dynamic> fixture({bool qa = false}) => {
   'request_code': 'LR-MEMORY',
   'revision': qa ? 2 : 0,
   'status': qa ? 'IN_REVIEW' : 'IN_PROGRESS',
-  'content': qa ? {...emptyRequestGerminationDetail(), 'temperature_text': null} : null,
-  'method_code':'AAT_42C_72H_RH90',
-  'treatment_started_at':'2026-11-18T00:00:00Z',
+  'content': qa
+      ? {...emptyRequestGerminationDetail(), 'temperature_text': null}
+      : null,
+  'method_code': 'AAT_42C_72H_RH90',
+  'treatment_started_at': '2026-11-18T00:00:00Z',
   'can_edit': !qa,
   'can_review': qa,
   'reviewer_name': null,
@@ -84,6 +86,7 @@ void main() {
           scrollable: find.byType(Scrollable).first,
         );
         await t.enterText(target, '0');
+        await t.pumpAndSettle();
         final save = find.widgetWithText(
           FilledButton,
           'Simpan rincian pengamatan',
@@ -98,8 +101,13 @@ void main() {
         await t.tap(save);
         await t.pumpAndSettle();
         expect(writes.length, 1);
-        await t.ensureVisible(save);
-        await t.tap(save);
+        await t.scrollUntilVisible(
+          save.hitTestable(),
+          180,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await t.pumpAndSettle();
+        await t.tap(save.hitTestable());
         await t.pumpAndSettle();
         expect(writes.length, 2);
         expect(writes[0], writes[1]);
@@ -141,7 +149,7 @@ void main() {
           requestId: 'memory-request',
           runCode: 'LT-MEMORY',
           canApprove: true,
-              vigour: true,
+          vigour: true,
           command: (name, args) async {
             if (name == 'get_request_vigour_detail') return fixture();
             calls++;
@@ -158,6 +166,7 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     await t.enterText(target, '1.5');
+    await t.pumpAndSettle();
     final save = find.widgetWithText(FilledButton, 'Simpan rincian pengamatan');
     await t.scrollUntilVisible(
       save,
@@ -169,6 +178,10 @@ void main() {
     await t.tap(save);
     await t.pumpAndSettle();
     expect(calls, 0);
+    expect(
+      find.textContaining('kosong hanya jika belum diamati'),
+      findsOneWidget,
+    );
   });
   testWidgets(
     'independent QA needs actual name and confirmation; review retry stable',
@@ -181,7 +194,7 @@ void main() {
             requestId: 'memory-request',
             runCode: 'LT-MEMORY',
             canApprove: true,
-              vigour: true,
+            vigour: true,
             command: (name, args) async {
               if (name == 'get_request_vigour_detail') return record;
               expect(name, 'review_request_vigour_detail');
@@ -206,8 +219,15 @@ void main() {
         scrollable: find.byType(Scrollable).first,
       );
       await t.enterText(name, 'Actual QA');
-      await t.scrollUntilVisible(find.widgetWithText(TextField,'Catatan QA / alasan uji ulang'),200,scrollable:find.byType(Scrollable).first);
-      await t.enterText(find.widgetWithText(TextField,'Catatan QA / alasan uji ulang'),'Checked actual counts and method');
+      await t.scrollUntilVisible(
+        find.widgetWithText(TextField, 'Catatan QA / alasan uji ulang'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await t.enterText(
+        find.widgetWithText(TextField, 'Catatan QA / alasan uji ulang'),
+        'Checked actual counts and method',
+      );
       final save = find.widgetWithText(FilledButton, 'Simpan keputusan QA');
       await t.scrollUntilVisible(
         save,
@@ -223,7 +243,11 @@ void main() {
       await t.tap(save);
       await t.pumpAndSettle();
       expect(writes.length, 1);
-      await t.scrollUntilVisible(save,200,scrollable:find.byType(Scrollable).first);
+      await t.scrollUntilVisible(
+        save,
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
       await t.ensureVisible(save);
       await t.tap(save);
       await t.pumpAndSettle();
