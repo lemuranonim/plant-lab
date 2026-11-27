@@ -5,6 +5,8 @@ import 'package:uuid/uuid.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/database/supabase_client.dart';
 import 'lab_logbook_screen.dart';
+import 'lab_workspace_widgets.dart';
+import 'workflow_presentation.dart';
 
 typedef PlantSampleRpc =
     Future<Map<String, dynamic>> Function(
@@ -28,6 +30,24 @@ const plantSampleActions = {
   'DECLINE': 'Tidak bisa memenuhi',
   'CANCEL': 'Batalkan permintaan',
 };
+const labSampleQuickFilters = {
+  'ACTIVE': 'Belum selesai',
+  'REQUESTED': 'Menunggu Plant',
+  'SENT': 'Dikirim',
+  'RECEIVED': 'Diterima',
+};
+const _incompleteMessage =
+    'Lengkapi isian dan konfirmasi. Label penerimaan harus sama dengan label pada kiriman.';
+
+enum SampleLabelMatch { empty, match, mismatch }
+
+SampleLabelMatch sampleLabelMatch(String actual, String? expected) {
+  final typed = actual.trim();
+  if (typed.isEmpty) return SampleLabelMatch.empty;
+  return expected != null && typed == expected
+      ? SampleLabelMatch.match
+      : SampleLabelMatch.mismatch;
+}
 
 num? plantSampleGrams(String text) {
   final value = text.trim().replaceAll(',', '.');
@@ -54,6 +74,8 @@ class PlantSampleRequestScreen extends StatefulWidget {
 
 class _PlantSampleRequestScreenState extends State<PlantSampleRequestScreen> {
   final search = TextEditingController(), lotSearch = TextEditingController();
+  final listScroll = ScrollController();
+  final editorAnchor = GlobalKey();
   final label = TextEditingController(),
       weight = TextEditingController(),
       note = TextEditingController();
@@ -87,6 +109,7 @@ class _PlantSampleRequestScreenState extends State<PlantSampleRequestScreen> {
     for (final field in [search, lotSearch, label, weight, note]) {
       field.dispose();
     }
+    listScroll.dispose();
     super.dispose();
   }
 
@@ -149,6 +172,17 @@ class _PlantSampleRequestScreenState extends State<PlantSampleRequestScreen> {
       notice = null;
     });
     if (next == 'CREATE') findLots('');
+    if (lab) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || action == null) return;
+        final anchor = editorAnchor.currentContext;
+        if (anchor != null) {
+          Scrollable.ensureVisible(anchor, alignment: 0.05);
+        } else if (listScroll.hasClients) {
+          listScroll.jumpTo(0);
+        }
+      });
+    }
   }
 
   Future<void> findLots(String query, [int start = 0]) async {
@@ -195,10 +229,7 @@ class _PlantSampleRequestScreenState extends State<PlantSampleRequestScreen> {
             (weighing && (grams == null || label.text.trim().isEmpty)) ||
             (action == 'RECEIVE' &&
                 label.text.trim() != editingRow?['sample_label']))) {
-      setState(
-        () => editorError =
-            'Lengkapi isian dan konfirmasi. Label penerimaan harus sama dengan label pada kiriman.',
-      );
+      setState(() => editorError = _incompleteMessage);
       return;
     }
     setState(() {
@@ -263,6 +294,7 @@ class _PlantSampleRequestScreenState extends State<PlantSampleRequestScreen> {
     TextEditingController controller,
     int max, {
     bool decimal = false,
+    ValueChanged<String>? onChanged,
   }) => Padding(
     padding: const EdgeInsets.only(bottom: 10),
     child: TextField(
@@ -272,11 +304,13 @@ class _PlantSampleRequestScreenState extends State<PlantSampleRequestScreen> {
           ? const TextInputType.numberWithOptions(decimal: true)
           : TextInputType.text,
       maxLength: max,
+      onChanged: onChanged,
       decoration: InputDecoration(labelText: name),
     ),
   );
 
   Widget editor() => Card(
+    key: lab ? editorAnchor : null,
     child: Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -326,12 +360,28 @@ class _PlantSampleRequestScreenState extends State<PlantSampleRequestScreen> {
                 ),
             ],
           ],
-          if (action == 'RECEIVE')
-            Text(
-              'Label kiriman Plant: ${editingRow?['sample_label']}. Jika berbeda, jangan konfirmasi; hubungi Plant.',
+          if (action == 'RECEIVE' && editingRow != null) ...[
+            const SizedBox(height: 12),
+            _SampleFacts(row: editingRow!),
+            const SizedBox(height: 8),
+            const Text(
+              'Bandingkan label fisik dan catat berat yang ditimbang di Lab.',
             ),
+          ],
           if (weighing) ...[
-            field('Label pada sampel fisik', label, 120),
+            field(
+              'Label pada sampel fisik',
+              label,
+              120,
+              onChanged: action == 'RECEIVE'
+                  ? (_) {
+                      if (editorError == _incompleteMessage) {
+                        setState(() => editorError = null);
+                      }
+                    }
+                  : null,
+            ),
+            if (action == 'RECEIVE') labelCheck(),
             field('Berat aktual (gram)', weight, 13, decimal: true),
           ],
           field(
@@ -380,6 +430,115 @@ class _PlantSampleRequestScreenState extends State<PlantSampleRequestScreen> {
       ),
     ),
   );
+
+  Widget labelCheck() => ValueListenableBuilder<TextEditingValue>(
+    valueListenable: label,
+    builder: (context, value, _) {
+      final result = sampleLabelMatch(
+        value.text,
+        editingRow?['sample_label'] as String?,
+      );
+      final colors = Theme.of(context).colorScheme;
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Semantics(
+          liveRegion: true,
+          child: Text(
+            switch (result) {
+              SampleLabelMatch.empty => 'Isi sesuai label pada sampel fisik.',
+              SampleLabelMatch.match => 'Label cocok dengan kiriman.',
+              SampleLabelMatch.mismatch =>
+                'Label berbeda. Jangan konfirmasi; hubungi Plant.',
+            },
+            style: TextStyle(
+              color: switch (result) {
+                SampleLabelMatch.empty => colors.onSurfaceVariant,
+                SampleLabelMatch.match => colors.primary,
+                SampleLabelMatch.mismatch => colors.error,
+              },
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      );
+    },
+  );
+
+  Widget labRow(Map<String, dynamic> value) {
+    final state = value['status'] as String;
+    final allowed = canWrite && action == null;
+    return LabFormCard(
+      title: value['lot_code'] as String,
+      icon: Icons.inventory_2_outlined,
+      hint:
+          "${value['hybrid']} · ${value['plant_site']} ke ${value['lab_site']}",
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: WorkflowStatusBadge(
+            status: state == 'RECEIVED' ? 'VERIFIED' : state,
+            label: state == 'SENT'
+                ? 'Dikirim · cek saat tiba'
+                : plantSampleStatuses[state],
+          ),
+        ),
+        const SizedBox(height: 10),
+        if (state == 'REQUESTED')
+          const Text('Plant belum mencatat pengiriman.'),
+        if (state == 'SENT' || state == 'RECEIVED') _SampleFacts(row: value),
+        ExpansionTile(
+          title: const Text('Rincian serah terima'),
+          tilePadding: EdgeInsets.zero,
+          expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            LabFieldGrid(
+              minFieldWidth: 132,
+              fields: [
+                LabRecordValue('Keperluan', value['purpose'] as String?),
+                LabRecordValue('Diminta', logbookWib(value['requested_at'])),
+                if (value['sent_at'] != null)
+                  LabRecordValue('Dikirim Plant', logbookWib(value['sent_at'])),
+                if (value['sent_note'] != null)
+                  LabRecordValue(
+                    'Kondisi saat dikirim',
+                    value['sent_note'] as String?,
+                  ),
+                if (value['received_at'] != null)
+                  LabRecordValue(
+                    'Diterima Lab',
+                    logbookWib(value['received_at']),
+                  ),
+                if (value['received_note'] != null)
+                  LabRecordValue(
+                    'Kondisi saat diterima',
+                    value['received_note'] as String?,
+                  ),
+                if (state == 'RECEIVED' && value['sent_grams'] != null)
+                  LabRecordValue(
+                    'Berat awal dari Plant',
+                    _sampleGrams(value['sent_grams']),
+                  ),
+                if (value['closure_note'] != null)
+                  LabRecordValue('Alasan', value['closure_note'] as String?),
+              ],
+            ),
+            const SizedBox(height: 10),
+          ],
+        ),
+        if (allowed && (state == 'SENT' || state == 'REQUESTED'))
+          OutlinedButton(
+            onPressed: busy
+                ? null
+                : () => open(state == 'SENT' ? 'RECEIVE' : 'CANCEL', value),
+            child: Text(
+              state == 'SENT'
+                  ? plantSampleActions['RECEIVE']!
+                  : plantSampleActions['CANCEL']!,
+            ),
+          ),
+      ],
+    );
+  }
 
   Widget row(Map<String, dynamic> value) {
     final state = value['status'];
@@ -440,24 +599,40 @@ class _PlantSampleRequestScreenState extends State<PlantSampleRequestScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: Text(
-        lab ? 'Permintaan sampel ke Plant' : 'Permintaan sampel dari Lab',
-      ),
+      toolbarHeight: action == 'RECEIVE' && editingRow != null
+          ? LabLotTitle.toolbarHeight(context)
+          : null,
+      title: action == 'RECEIVE' && editingRow != null
+          ? LabLotTitle(
+              lot: editingRow!['lot_code'] as String,
+              reference: 'Konfirmasi sampel diterima',
+            )
+          : Text(
+              lab ? 'Permintaan sampel ke Plant' : 'Permintaan sampel dari Lab',
+            ),
     ),
     body: ListView(
+      controller: lab ? listScroll : null,
       padding: const EdgeInsets.all(16),
       children: [
-        Text(
-          lab
-              ? 'Minta sampel lot yang sudah tercatat. Konfirmasi setelah sampel fisik diterima dan labelnya cocok.'
-              : 'Catat pengiriman hanya setelah sampel benar-benar dikirim.',
-        ),
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 12),
-          child: Text(
-            'Menu ini hanya untuk serah terima. Tidak memulai uji atau melepas lot.',
+        if (lab) ...[
+          const Text('Minta sampel dan cocokkan setelah sampel fisik tiba.'),
+          const LabHelp(
+            label: 'Cara serah terima',
+            text:
+                'Konfirmasi hanya setelah sampel fisik tiba dan label cocok. Serah terima tidak memulai uji atau melepas lot.',
           ),
-        ),
+        ] else ...[
+          const Text(
+            'Catat pengiriman hanya setelah sampel benar-benar dikirim.',
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Text(
+              'Menu ini hanya untuk serah terima. Tidak memulai uji atau melepas lot.',
+            ),
+          ),
+        ],
         if (sites.isNotEmpty)
           DropdownButtonFormField<String>(
             initialValue: site,
@@ -488,6 +663,7 @@ class _PlantSampleRequestScreenState extends State<PlantSampleRequestScreen> {
           ),
         ),
         DropdownButtonFormField<String>(
+          key: lab ? ValueKey('lab-sample-status-$status') : null,
           initialValue: status,
           isExpanded: true,
           decoration: const InputDecoration(labelText: 'Status'),
@@ -540,11 +716,46 @@ class _PlantSampleRequestScreenState extends State<PlantSampleRequestScreen> {
         if (action != null) editor(),
         if (page != null) ...[
           Text("${page!['total']} permintaan"),
+          if (lab) ...[
+            Text(
+              [
+                for (final entry in sites)
+                  if (entry['id'] == site) entry['site_name'],
+                plantSampleStatuses[status],
+                if (appliedSearch.isNotEmpty) 'Cari: $appliedSearch',
+              ].whereType<String>().join(' · '),
+            ),
+            const SizedBox(height: 8),
+            Semantics(
+              container: true,
+              label: 'Filter cepat sampel',
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: [
+                  for (final filter in labSampleQuickFilters.entries)
+                    ChoiceChip(
+                      key: ValueKey('lab-sample-quick-${filter.key}'),
+                      label: Text(filter.value),
+                      selected: status == filter.key,
+                      onSelected: busy || action != null
+                          ? null
+                          : (selected) {
+                              if (status == filter.key) return;
+                              setState(() => status = filter.key);
+                              load();
+                            },
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
           if ((page!['rows'] as List).isEmpty)
             const Text('Tidak ada permintaan pada lokasi dan filter ini.'),
           for (final item
               in (page!['rows'] as List).cast<Map<String, dynamic>>())
-            row(item),
+            lab ? labRow(item) : row(item),
           Wrap(
             spacing: 8,
             children: [
@@ -568,4 +779,31 @@ class _PlantSampleRequestScreenState extends State<PlantSampleRequestScreen> {
       ],
     ),
   );
+}
+
+String? _sampleGrams(dynamic value) => value is num
+    ? "${value.toStringAsFixed(3).replaceFirst(RegExp(r'\.?0+$'), '').replaceAll('.', ',')} g"
+    : null;
+
+class _SampleFacts extends StatelessWidget {
+  const _SampleFacts({required this.row});
+  final Map<String, dynamic> row;
+
+  @override
+  Widget build(BuildContext context) {
+    final received = row['status'] == 'RECEIVED';
+    return LabFieldGrid(
+      minFieldWidth: 126,
+      fields: [
+        LabRecordValue(
+          received ? 'Label yang dicocokkan' : 'Label kiriman Plant',
+          row['sample_label'] as String?,
+        ),
+        LabRecordValue(
+          received ? 'Berat diterima Lab' : 'Berat kiriman Plant',
+          _sampleGrams(row[received ? 'received_grams' : 'sent_grams']),
+        ),
+      ],
+    );
+  }
 }

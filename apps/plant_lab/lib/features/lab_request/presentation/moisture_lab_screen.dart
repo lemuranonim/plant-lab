@@ -8,6 +8,8 @@ import 'routine_lab_screen.dart';
 import 'routine_sample_reference.dart';
 import 'routine_form_download.dart';
 import 'moisture_record_workflow.dart';
+import 'lab_workspace_widgets.dart';
+import 'workflow_presentation.dart';
 
 Map<String, dynamic> emptyMoistureContent() => {
   'version': 1,
@@ -22,12 +24,89 @@ Map<String, dynamic> emptyMoistureContent() => {
   'readings': [null, null, null],
 };
 double? moistureMean(List<dynamic> readings) =>
-    readings.length == 3 && readings.every((x) => x is num)
+    readings.length == 3 &&
+        readings.every((x) => x is num && x.isFinite && x >= 0 && x <= 100)
     ? readings.cast<num>().fold<double>(0, (a, b) => a + b) / 3
     : null;
 String moistureNumber(dynamic value) => value == null
     ? 'belum lengkap'
     : (value as num).toStringAsFixed(6).replaceFirst(RegExp(r'\.?0+$'), '');
+String _moistureDisplay(num value) =>
+    '${moistureNumber(value).replaceAll('.', ',')}%';
+
+double? _readMoisture(String input) {
+  final value = double.tryParse(input.trim().replaceAll(',', '.'));
+  return value != null && value.isFinite && value >= 0 && value <= 100
+      ? value
+      : null;
+}
+
+class _MoistureMeanPanel extends StatelessWidget {
+  const _MoistureMeanPanel({required this.value, this.entered});
+  final num? value;
+  final int? entered;
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Semantics(
+      liveRegion: entered != null,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainer,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              entered == null
+                  ? 'Rata-rata 3 pembacaan'
+                  : 'Pratinjau rata-rata · $entered/3 terisi',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 3),
+            Text(
+              value == null ? 'Belum lengkap' : _moistureDisplay(value!),
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MoistureSampleFacts extends StatelessWidget {
+  const _MoistureSampleFacts(this.content, {this.compact = false});
+  final Map<dynamic, dynamic> content;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) => LabFieldGrid(
+    minFieldWidth: 132,
+    fields: [
+      LabRecordValue('Label sampel', content['sample_reference'] as String?),
+      LabRecordValue('Jenis sampel', content['sample_type'] as String?),
+      LabRecordValue('Pelaksana', content['analyst_name'] as String?),
+      LabRecordValue('Alat', content['instrument'] as String?),
+      LabRecordValue('Metode', content['method'] as String?),
+      LabRecordValue(
+        'Waktu ukur',
+        routineWib(content['measured_at'] as String?),
+      ),
+      if (!compact)
+        LabRecordValue(
+          'Sampel tersedia',
+          routineWib(content['received_at'] as String?),
+        ),
+      if (!compact) LabRecordValue('Catatan', content['note'] as String?),
+    ],
+  );
+}
+
 final moistureDraftsProvider = FutureProvider.autoDispose
     .family<Map<String, dynamic>, ({String site, int offset})>(
       (ref, q) => supabase
@@ -109,13 +188,9 @@ class _MoistureLabScreenState extends ConsumerState<MoistureLabScreen> {
               return ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  const Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Text(
-                        'MC Lab mandiri, tanpa request Plant; bukan MC PI/Plant. Catat 3 pembacaan persen; kosong bukan nol. Lengkapi label, jenis sampel, tanggal, petugas, alat dan metode aktual. Simpan lalu kirim ke QA. QA memverifikasi catatan atau mengembalikan untuk diperbaiki, tanpa lulus/gagal atau pelepasan lot.',
-                      ),
-                    ),
+                  const LabHelp(
+                    text:
+                        'Ini MC Lab mandiri, bukan MC PI/Plant. Rata-rata muncul setelah tiga pembacaan lengkap. Simpan sebelum kirim ke QA. QA memverifikasi catatan, bukan menilai lulus/gagal atau melepas lot.',
                   ),
                   DropdownButtonFormField<String>(
                     initialValue: lab,
@@ -238,7 +313,7 @@ class _MoistureLabScreenState extends ConsumerState<MoistureLabScreen> {
                                         CrossAxisAlignment.stretch,
                                     children: [
                                       Text(
-                                        '${d['lot_code']} · ${moistureStatus(d['status'])}',
+                                        d['lot_code'] as String,
                                         style: Theme.of(
                                           context,
                                         ).textTheme.titleMedium,
@@ -246,20 +321,52 @@ class _MoistureLabScreenState extends ConsumerState<MoistureLabScreen> {
                                       Text(
                                         '${d['hybrid']} · ${d['stage_code']} · revisi ${d['revision']}',
                                       ),
+                                      const SizedBox(height: 8),
+                                      Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: WorkflowStatusBadge(
+                                          status: d['status'] as String,
+                                          label: moistureStatus(d['status']),
+                                        ),
+                                      ),
                                       Text(
                                         'Label: ${d['content']['sample_reference'] ?? 'belum dicatat'}',
                                       ),
-                                      Text(
-                                        'MC1/2/3: ${(d['content']['readings'] as List).map((v) => v == null ? 'belum dicatat' : '${moistureNumber(v)}%').join(' / ')}',
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 10,
+                                        ),
+                                        child: Wrap(
+                                          spacing: 18,
+                                          runSpacing: 6,
+                                          children: [
+                                            for (final reading
+                                                in (d['content']['readings']
+                                                        as List)
+                                                    .asMap()
+                                                    .entries)
+                                              LabRecordValue(
+                                                'MC ${reading.key + 1}',
+                                                reading.value == null
+                                                    ? null
+                                                    : _moistureDisplay(
+                                                        reading.value as num,
+                                                      ),
+                                              ),
+                                          ],
+                                        ),
                                       ),
-                                      Text(
-                                        'Rata-rata 3 pembacaan: ${moistureNumber(d['mean_percent'])}${d['mean_percent'] == null ? '' : '%'} · tidak dinilai lulus/gagal.',
+                                      _MoistureMeanPanel(
+                                        value: d['mean_percent'] as num?,
                                       ),
                                       ExpansionTile(
                                         title: const Text('Rincian pengukuran'),
+                                        tilePadding: EdgeInsets.zero,
+                                        expandedCrossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
                                         children: [
-                                          Text(
-                                            'Pelaksana: ${d['content']['analyst_name'] ?? 'belum dicatat'}\nAlat: ${d['content']['instrument'] ?? 'belum dicatat'}\nMetode: ${d['content']['method'] ?? 'belum dicatat'}\nSampel tersedia: ${routineWib(d['content']['received_at'] as String?)}\nUkur: ${routineWib(d['content']['measured_at'] as String?)}\nCatatan: ${d['content']['note'] ?? 'belum dicatat'}',
+                                          _MoistureSampleFacts(
+                                            d['content'] as Map,
                                           ),
                                         ],
                                       ),
@@ -278,6 +385,10 @@ class _MoistureLabScreenState extends ConsumerState<MoistureLabScreen> {
                                           record: Map<String, dynamic>.from(
                                             d as Map,
                                           ),
+                                          evidence: _MoistureSampleFacts(
+                                            d['content'] as Map,
+                                            compact: true,
+                                          ),
                                           onChanged: () => ref.invalidate(
                                             moistureDraftsProvider,
                                           ),
@@ -285,8 +396,10 @@ class _MoistureLabScreenState extends ConsumerState<MoistureLabScreen> {
                                       if (canWrite &&
                                           d['can_edit'] == true &&
                                           d['can_submit'] != true)
-                                        const Text(
-                                          'Lengkapi dan simpan label, jenis sampel, tanggal, nama pelaksana, alat, metode dan 3 bacaan dahulu. Catatan yang dikembalikan perlu disimpan sebagai revisi baru sebelum dikirim lagi.',
+                                        const LabHelp(
+                                          label: 'Syarat kirim ke QA',
+                                          text:
+                                              'Lengkapi label, jenis sampel, dua waktu aktual, pelaksana, alat, metode, dan tiga bacaan. Catatan yang dikembalikan harus disimpan sebagai revisi baru.',
                                         ),
                                       if (canWrite && d['can_edit'] == true)
                                         OutlinedButton(
@@ -352,12 +465,16 @@ class MoistureDraftEditor extends StatefulWidget {
 }
 
 class _MoistureDraftEditorState extends State<MoistureDraftEditor> {
+  final identitySection = GlobalKey(),
+      timeSection = GlobalKey(),
+      countsSection = GlobalKey();
   late Map<String, dynamic> content;
   late int revision;
   late Map<String, TextEditingController> fields;
   late List<TextEditingController> readings;
   bool busy = false, changed = false;
   String? error, message, action, previous;
+  late String observedInput;
   final labels = const {
     'sample_type': 'Jenis sampel pada form',
     'analyst_name': 'Nama pelaksana MC Lab',
@@ -378,9 +495,25 @@ class _MoistureDraftEditorState extends State<MoistureDraftEditor> {
       for (final v in content['readings'] as List)
         TextEditingController(text: v?.toString() ?? ''),
     ];
+    observedInput = _inputText();
     for (final c in [...fields.values, ...readings]) {
-      c.addListener(() => changed = true);
+      c.addListener(_inputChanged);
     }
+  }
+
+  String _inputText() => jsonEncode([
+    for (final c in [...fields.values, ...readings]) c.text,
+  ]);
+  void _inputChanged() {
+    final next = _inputText();
+    if (next == observedInput) return;
+    observedInput = next;
+    if (changed && message == null && error == null) return;
+    setState(() {
+      changed = true;
+      message = null;
+      error = null;
+    });
   }
 
   @override
@@ -414,6 +547,7 @@ class _MoistureDraftEditorState extends State<MoistureDraftEditor> {
         time.minute,
       ).subtract(const Duration(hours: 7)).toIso8601String();
       changed = true;
+      message = null;
     });
   }
 
@@ -444,10 +578,8 @@ class _MoistureDraftEditorState extends State<MoistureDraftEditor> {
     if (busy || !AppConfig.canonicalWritesEnabled) return;
     final values = <double?>[];
     for (final c in readings) {
-      final raw = c.text.trim(),
-          value = double.tryParse(raw.replaceAll(',', '.'));
-      if (raw.isNotEmpty &&
-          (value == null || !value.isFinite || value < 0 || value > 100)) {
+      final raw = c.text.trim(), value = _readMoisture(raw);
+      if (raw.isNotEmpty && value == null) {
         setState(
           () => error =
               'Isi MC dalam persen 0–100. Kosongkan jika belum dicatat.',
@@ -488,8 +620,7 @@ class _MoistureDraftEditorState extends State<MoistureDraftEditor> {
           changed = false;
           previous = null;
           action = null;
-          message =
-              'MC Lab tersimpan · revisi $revision. Masih draft, belum disetujui QA.';
+          message = 'MC Lab tersimpan · revisi $revision. Belum diperiksa QA.';
         });
       }
     } catch (_) {
@@ -504,94 +635,182 @@ class _MoistureDraftEditorState extends State<MoistureDraftEditor> {
     }
   }
 
+  Widget draftFooter(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surface,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(
+            top: BorderSide(color: theme.colorScheme.outlineVariant),
+          ),
+        ),
+        child: SafeArea(
+          top: false,
+          minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Semantics(
+                liveRegion: true,
+                child: Text(
+                  error ??
+                      message ??
+                      (revision == 0
+                          ? 'Draft baru'
+                          : changed
+                          ? 'Perubahan belum tersimpan · revisi terakhir $revision'
+                          : 'Revisi $revision tersimpan'),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: error == null
+                        ? theme.colorScheme.onSurfaceVariant
+                        : theme.colorScheme.error,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              FilledButton(
+                key: const ValueKey('mc-save-draft'),
+                onPressed: busy ? null : save,
+                child: Text(busy ? 'Menyimpan…' : 'Simpan draft MC Lab'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => PopScope(
     canPop: !changed && !busy,
     onPopInvokedWithResult: (didPop, _) async {
       if (!didPop && await leave() && context.mounted) {
         setState(() => changed = false);
-        Navigator.pop(context);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (context.mounted) Navigator.pop(context);
+        });
       }
     },
     child: Scaffold(
-      appBar: AppBar(title: const Text('Draft MC Lab')),
-      body: ListView(
+      appBar: AppBar(
+        toolbarHeight: LabLotTitle.toolbarHeight(context),
+        title: LabLotTitle(
+          lot: widget.record['lot_code'] as String,
+          reference: 'Draft MC Lab',
+        ),
+      ),
+      bottomNavigationBar: MediaQuery.viewInsetsOf(context).bottom == 0
+          ? draftFooter(context)
+          : null,
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        children: [
-          Text(
-            '${widget.record['lot_code']} · ${widget.record['hybrid']} · ${widget.record['stage_code']}',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          Text('Revisi $revision · lot tidak diganti setelah tersimpan.'),
-          const Text(
-            'Tiga pembacaan persen, bukan angka MC PI/Plant. Isian boleh dicicil; kosong bukan nol. Tidak ada approval atau lulus/gagal dari draft ini.',
-          ),
-          RoutineSampleReferenceField(
-            controller: fields['sample_reference']!,
-            enabled: !busy,
-            locked: false,
-            loadReferences: widget.loadReferences,
-          ),
-          for (final entry in labels.entries)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: TextField(
-                controller: fields[entry.key],
-                enabled: !busy,
-                maxLength: entry.key == 'note' ? 1000 : 120,
-                maxLines: entry.key == 'note' ? 3 : 1,
-                decoration: InputDecoration(labelText: entry.value),
-              ),
-            ),
-          for (final entry in {
-            'received_at': 'Sampel tersedia di Lab',
-            'measured_at': 'Tanggal dan jam ukur aktual',
-          }.entries)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text('${entry.value} (WIB)'),
-              subtitle: Text(routineWib(content[entry.key] as String?)),
-              onTap: busy ? null : () => pick(entry.key),
-              trailing: IconButton(
-                tooltip: 'Kosongkan waktu MC',
-                onPressed: busy
-                    ? null
-                    : () => setState(() {
-                        content[entry.key] = null;
-                        changed = true;
-                      }),
-                icon: const Icon(Icons.clear),
-              ),
-            ),
-          for (int i = 0; i < 3; i++)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: TextField(
-                key: ValueKey('mc-reading-$i'),
-                controller: readings[i],
-                enabled: !busy,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: InputDecoration(
-                  labelText: 'Pembacaan MC ${i + 1} (%)',
-                ),
-              ),
-            ),
-          if (error != null)
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
             Text(
-              error!,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
+              '${widget.record['hybrid']} · ${widget.record['stage_code']}',
+              style: Theme.of(context).textTheme.titleLarge,
             ),
-          if (message != null) Text(message!),
-          FilledButton(
-            onPressed: busy ? null : save,
-            child: Text(busy ? 'Menyimpan…' : 'Simpan draft MC Lab'),
-          ),
-          const Text(
-            'Setelah simpan, kembali ke daftar untuk membaca rata-rata atau mengunduh form PDF/Excel. Rata-rata belum tersedia jika salah satu pembacaan masih kosong.',
-          ),
-        ],
+            LabFormSections(
+              sections: const ['Identitas', 'Waktu (WIB)', 'Pembacaan'],
+              targets: [identitySection, timeSection, countsSection],
+            ),
+            const SizedBox(height: 12),
+            LabFormCard(
+              key: identitySection,
+              title: 'Identitas sampel & pengukuran',
+              icon: Icons.inventory_2_outlined,
+              children: [
+                RoutineSampleReferenceField(
+                  controller: fields['sample_reference']!,
+                  enabled: !busy,
+                  locked: false,
+                  loadReferences: widget.loadReferences,
+                ),
+                for (final entry in labels.entries)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: TextField(
+                      controller: fields[entry.key],
+                      enabled: !busy,
+                      maxLength: entry.key == 'note' ? 1000 : 120,
+                      maxLines: entry.key == 'note' ? 3 : 1,
+                      decoration: InputDecoration(labelText: entry.value),
+                    ),
+                  ),
+              ],
+            ),
+            LabFormCard(
+              key: timeSection,
+              title: 'Waktu pengukuran (WIB)',
+              icon: Icons.schedule_outlined,
+              children: [
+                for (final entry in {
+                  'received_at': 'Sampel tersedia di Lab',
+                  'measured_at': 'Tanggal dan jam ukur aktual',
+                }.entries)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('${entry.value} (WIB)'),
+                    subtitle: Text(routineWib(content[entry.key] as String?)),
+                    onTap: busy ? null : () => pick(entry.key),
+                    trailing: IconButton(
+                      tooltip: 'Kosongkan waktu MC',
+                      onPressed: busy
+                          ? null
+                          : () => setState(() {
+                              content[entry.key] = null;
+                              changed = true;
+                              message = null;
+                            }),
+                      icon: const Icon(Icons.clear),
+                    ),
+                  ),
+              ],
+            ),
+            LabFormCard(
+              key: countsSection,
+              title: 'Tiga pembacaan kadar air',
+              icon: Icons.water_drop_outlined,
+              hint: 'Kosong berarti belum dicatat, bukan nol.',
+              children: [
+                LabFieldGrid(
+                  maxColumns: 3,
+                  minFieldWidth: 142,
+                  fields: [
+                    for (int i = 0; i < 3; i++)
+                      TextField(
+                        key: ValueKey('mc-reading-$i'),
+                        controller: readings[i],
+                        enabled: !busy,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: InputDecoration(
+                          labelText: 'Pembacaan MC ${i + 1} (%)',
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ListenableBuilder(
+                  listenable: Listenable.merge(readings),
+                  builder: (_, _) {
+                    final values = readings
+                        .map((c) => _readMoisture(c.text))
+                        .toList();
+                    return _MoistureMeanPanel(
+                      value: moistureMean(values),
+                      entered: values.nonNulls.length,
+                    );
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     ),
   );

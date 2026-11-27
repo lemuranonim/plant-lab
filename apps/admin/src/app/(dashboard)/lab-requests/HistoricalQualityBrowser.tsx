@@ -4,6 +4,8 @@ import { useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { isolatedApiSchema } from '@/lib/supabase/config';
 import styles from './history.module.css';
+import { LabHelp } from '../LabUi';
+import lab from '../lab-surface.module.css';
 
 type Lot = { id: string; lot_code: string };
 type Fact = { coordinate: string; header: string; header_band: string | null; role: string;
@@ -45,7 +47,7 @@ function dateText(value: string | null, origin: string | null) {
   return `${value} · ${origin === 'FORMULA_CACHE' ? 'hasil rumus sumber, bukan bukti aktual' : 'tanggal sumber'}`;
 }
 
-function SourcePhase({ phase }: { phase: Phase }) {
+function SourcePhase({ phase, compact }: { phase: Phase; compact: boolean }) {
   return <details className={styles.phase}>
     <summary>{kinds[phase.kind] ?? phase.kind} · {phase.label}</summary>
     <dl className={styles.facts}>
@@ -68,6 +70,13 @@ function SourcePhase({ phase }: { phase: Phase }) {
         </tr>)}</tbody>
       </table>
     </div>}
+    {compact && phase.subunits.length > 0 && <div className={styles.compact}>
+      <p>Hitungan asli · — belum dicatat, bukan nol.</p>
+      <ul>{phase.subunits.map(row => <li key={row.source_row}>
+        <strong>{row.label ?? 'Tanpa label'} · baris {row.source_row}</strong>
+        <dl>{(['Normal', 'Abnormal', 'Mati', 'Total'] as const).map((label, i) => <div key={label}><dt>{label}</dt><dd>{[row.normal, row.abnormal, row.dead, row.total][i] ?? '—'}</dd></div>)}</dl>
+      </li>)}</ul>
+    </div>}
     <details className={styles.cells}>
       <summary>Nilai sumber & posisi sel ({phase.values.length})</summary>
       <div className={styles.scroll} role="region" aria-label="Nilai sel sumber" tabIndex={0}>
@@ -80,6 +89,12 @@ function SourcePhase({ phase }: { phase: Phase }) {
           </tr>)}</tbody>
         </table>
       </div>
+      {compact && <ul className={styles.compact}>{phase.values.map(fact => <li key={fact.coordinate}>
+        <strong>{fact.coordinate} · {fact.header}</strong>
+        {fact.header_band && <small>{fact.header_band}</small>}
+        <dl><div><dt>Nilai</dt><dd>{fact.date ?? valueText(fact.number ?? fact.source_value)}</dd></div><div><dt>Satuan / asal</dt><dd>{fact.unit} · {fact.origin === 'FORMULA_CACHE' ? 'Cache rumus sumber' : fact.origin}</dd></div></dl>
+        {fact.warning && <small>{fact.warning}</small>}
+      </li>)}</ul>}
     </details>
   </details>;
 }
@@ -121,12 +136,15 @@ export function HistoricalQualityBrowser({ lots, module, truncated = false }: {
     }
   }
 
-  return <details className={styles.browser}>
-    <summary>Histori Excel · baca-saja</summary>
+  const compact = module === 'LAB';
+  return <details className={styles.browser} data-lab-history={compact || undefined}>
+    <summary>Histori Excel{compact ? <> <span className={lab.readBadge}>Baca saja</span></> : ' · baca-saja'}</summary>
+    {compact ? <><p>Arsip sumber, bukan hasil yang disetujui QA aplikasi.</p>
+      <LabHelp label="Cakupan arsip"><p>Histori bukan izin pelepasan lot atau penilaian ulang memakai acuan mutu saat ini.</p><p>Hanya lot pada permintaan yang berizin. Fase QI tanpa tahap jelas tidak ditampilkan. Batch H59/SWC; tidak semua lot sudah dipetakan.</p></LabHelp></> : <>
     <p className={styles.notice}>Arsip sumber, bukan hasil yang disetujui QA aplikasi atau izin pelepasan lot.
       Acuan mutu saat ini tidak diterapkan ulang pada histori.</p>
-    <p>{module === 'LAB' ? 'Lab: hanya lot pada permintaan yang berizin. Fase QI tanpa tahap yang jelas tidak ditampilkan.' : 'Plant: lot dalam cakupan site Anda.'}
-      {' '}Batch saat ini H59/SWC; tidak semua lot mempunyai histori yang sudah dipetakan.</p>
+    <p>Plant: lot dalam cakupan site Anda.
+      {' '}Batch saat ini H59/SWC; tidak semua lot mempunyai histori yang sudah dipetakan.</p></>}
     {truncated && <p role="status">Daftar pilihan dibatasi API. Lot di luar daftar ini belum dapat dipilih di tampilan ini.</p>}
     {unique.length === 0 ? <p>Belum ada lot yang dapat dipilih dalam cakupan Anda.</p> : <>
       <div className={styles.controls}>
@@ -148,7 +166,7 @@ export function HistoricalQualityBrowser({ lots, module, truncated = false }: {
             <summary>{record.source_type === 'QUALITY_INFORMATION_2026' ? 'Quality Information' : 'Germinasi / Vigor'} · {record.sheet} · baris {record.source_row}</summary>
             <p>{record.source_file_name} · mapping v{record.mapping_version}</p>
             {record.source_testing_type && <p>Jenis sumber: {record.source_testing_type}</p>}
-            {record.phases.map(phase => <SourcePhase key={phase.key} phase={phase} />)}
+            {record.phases.map(phase => <SourcePhase key={phase.key} phase={phase} compact={compact} />)}
           </details>)}
           <nav className={styles.pagination} aria-label="Halaman histori">
             <button type="button" className="btn" disabled={busy || offset === 0} onClick={() => load(Math.max(0, offset - pageSize))}>Sebelumnya</button>

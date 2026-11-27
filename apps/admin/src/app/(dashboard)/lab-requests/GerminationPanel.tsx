@@ -31,12 +31,13 @@ export type GerminationRun = {
   decision_reason: string | null;
 };
 
-export function GerminationPanel({ requestId, status, run, analyst, reviewer }: {
+export function GerminationPanel({ requestId, status, run, analyst, reviewer, inObservationTab = false }: {
   requestId: string;
   status: string;
   run?: GerminationRun;
   analyst: boolean;
   reviewer: boolean;
+  inObservationTab?: boolean;
 }) {
   const router = useRouter();
   const [count, setCount] = useState(2);
@@ -93,10 +94,10 @@ export function GerminationPanel({ requestId, status, run, analyst, reviewer }: 
 
   const summary = run?.summary;
   return (
-    <details style={{ minWidth: 200 }}>
+    <details style={{ minWidth: 200 }} open={inObservationTab || undefined}>
       <summary>Germinasi · Pasir 25 °C</summary>
       {run && <p>{run.run_code} · Percobaan {run.attempt_no ?? 1} · <span title={run.status}>{statusLabel(run.status)}</span></p>}
-      {run&&(analyst||reviewer)&&<GerminationRequestForms key={requestId+run.run_code} requestId={requestId} runCode={run.run_code} status={run.status}/>}
+      {!inObservationTab&&run&&(analyst||reviewer)&&<GerminationRequestForms key={requestId+run.run_code} requestId={requestId} runCode={run.run_code} status={run.status}/>}
       {summary && <>
         <p>Hasil Germinasi: <strong>{summary.germination_percent}%</strong></p>
         {hostedPilot && <ProvisionalResultSnapshot snapshot={summary.uac_quality_reference} />}

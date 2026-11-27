@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'lab_workspace_widgets.dart';
 import 'workflow_presentation.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/config/app_config.dart';
@@ -485,26 +486,33 @@ class _VigourActionDialogState extends State<VigourActionDialog> {
                       ? 'Isi jumlah benih dengan radikula ≥2 mm pada masing-masing ulangan 100 benih. Isi 0 bila tidak ada; jangan memakai hitungan normal Germinasi.'
                       : '2 ulangan × 100 benih. Normal + abnormal + mati =100/ulangan. Isi 0 untuk kategori tanpa benih.',
                 ),
-                for (var i = 0; i < (_isRet ? 4 : 2); i++) ...[
-                  const SizedBox(height: 16),
-                  Text('Ulangan ${i + 1}'),
-                  for (var j = 0; j < (_isRet ? 1 : 3); j++)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: TextField(
-                        controller: _counts[i * (_isRet ? 1 : 3) + j],
-                        enabled: !_busy,
-                        keyboardType: TextInputType.number,
-                        onChanged: (_) => setState(() => _error = null),
-                        decoration: InputDecoration(
-                          labelText:
-                              '${_isRet ? 'Radikula ≥2 mm' : ['Normal', 'Abnormal', 'Mati'][j]} ulangan ${i + 1}',
-                          suffixText: _isRet ? '/ 100 benih' : 'benih',
-                          floatingLabelBehavior: FloatingLabelBehavior.always,
-                        ),
+                const SizedBox(height: 16),
+                for (var i = 0; i < (_isRet ? 4 : 2); i++)
+                  LabFormCard(
+                    title: 'Ulangan ${i + 1}',
+                    icon: Icons.grass_outlined,
+                    children: [
+                      LabFieldGrid(
+                        minFieldWidth: 190,
+                        fields: [
+                          for (var j = 0; j < (_isRet ? 1 : 3); j++)
+                            TextField(
+                              controller: _counts[i * (_isRet ? 1 : 3) + j],
+                              enabled: !_busy,
+                              keyboardType: TextInputType.number,
+                              onChanged: (_) => setState(() => _error = null),
+                              decoration: InputDecoration(
+                                labelText:
+                                    '${_isRet ? 'Radikula ≥2 mm' : ['Normal', 'Abnormal', 'Mati'][j]} ulangan ${i + 1}',
+                                suffixText: _isRet ? '/ 100 benih' : 'benih',
+                                floatingLabelBehavior:
+                                    FloatingLabelBehavior.always,
+                              ),
+                            ),
+                        ],
                       ),
-                    ),
-                ],
+                    ],
+                  ),
               ],
               if (_isReview) ...[
                 const SizedBox(height: 12),

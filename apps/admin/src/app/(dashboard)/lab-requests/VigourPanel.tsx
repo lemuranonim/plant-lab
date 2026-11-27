@@ -33,8 +33,8 @@ const dateLabel = (date: string) => new Date(date).toLocaleString('id-ID');
 // Called only by the submit handler, so the clock reflects the user action.
 function actualEventDate(value:string){const date=new Date(value);return value&&Number.isFinite(date.getTime())&&date.getTime()<=Date.now()?date:null;}
 
-export function VigourPanel({ run, requestStatus, analyst, reviewer }: {
-  run: VigourRun; requestStatus: string; analyst: boolean; reviewer: boolean;
+export function VigourPanel({ run, requestStatus, analyst, reviewer, inObservationTab = false }: {
+  run: VigourRun; requestStatus: string; analyst: boolean; reviewer: boolean; inObservationTab?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -87,7 +87,7 @@ export function VigourPanel({ run, requestStatus, analyst, reviewer }: {
     }
   }
   const summary = run.summary;
-  return <details className={styles.vigourPanel}>
+  return <details className={styles.vigourPanel} open={inObservationTab || undefined}>
     <summary>Vigor · {run.method_name} · {statusLabel(run.status ?? run.item_status)}</summary>
     <p>{run.run_code ?? 'Belum dimulai'}{run.attempt_no && ` · Percobaan ${run.attempt_no}`}</p>
     {run.actual_started_at && <p>Mulai nyata: {dateLabel(run.actual_started_at)}</p>}
@@ -102,8 +102,8 @@ export function VigourPanel({ run, requestStatus, analyst, reviewer }: {
       <ProvisionalResultSnapshot snapshot={summary.uac_quality_reference} />
     </>}
     {run.decision_reason && <p>Catatan QA: {run.decision_reason}</p>}
-    {ret&&run.run_code&&run.status&&(analyst||reviewer)&&<RetRequestFormDownload runCode={run.run_code} status={run.status}/>}
-    {!ret&&run.run_code&&run.status&&(analyst||reviewer)&&<RequestSeedlingDownload runCode={run.run_code} status={run.status} kind="Vigor"/>}
+    {!inObservationTab&&ret&&run.run_code&&run.status&&(analyst||reviewer)&&<RetRequestFormDownload runCode={run.run_code} status={run.status}/>}
+    {!inObservationTab&&!ret&&run.run_code&&run.status&&(analyst||reviewer)&&<RequestSeedlingDownload runCode={run.run_code} status={run.status} kind="Vigor"/>}
     {canStart && <form onSubmit={event => submit(event, 'start')} className={styles.form}>
       <fieldset disabled={busy}>
         <legend>{run.status === 'RETEST' ? 'Mulai percobaan ulang baru' : 'Mulai uji nyata'}</legend>
@@ -143,12 +143,19 @@ export function VigourPanel({ run, requestStatus, analyst, reviewer }: {
         <button className="btn btn-primary">Simpan keputusan QA</button>
       </fieldset>
     </form>}
-    {!!run.prior_attempts.length && <details><summary>Riwayat percobaan sebelumnya ({run.prior_attempts.length})</summary>
-      <ul>{run.prior_attempts.map(prior => <li key={prior.run_code}>{prior.run_code} · percobaan {prior.attempt_no} · {prior.status} · {prior.summary?.vigour_percent ?? '—'}%
-       {ret&&(analyst||reviewer)&&<RetRequestFormDownload runCode={prior.run_code} status={prior.status}/>}
-       {!ret&&(analyst||reviewer)&&<RequestSeedlingDownload runCode={prior.run_code} status={prior.status} kind="Vigor"/>}
-      </li>)}</ul>
-    </details>}
+    {!inObservationTab && <VigourRequestHistory run={run} showForms={analyst||reviewer} />}
     {error && <p role="alert">{error}</p>}
+  </details>;
+}
+
+export function VigourRequestHistory({ run, showForms }: { run: VigourRun; showForms: boolean }) {
+  const ret = run.method_code === 'RET_16C_72H';
+  if (!run.prior_attempts.length) return null;
+  return <details>
+    <summary>Riwayat percobaan sebelumnya ({run.prior_attempts.length})</summary>
+    <ul>{run.prior_attempts.map(prior => <li key={prior.run_code}>{prior.run_code} · percobaan {prior.attempt_no} · {prior.status} · {prior.summary?.vigour_percent ?? '—'}%
+      {ret&&showForms&&<RetRequestFormDownload runCode={prior.run_code} status={prior.status}/>}
+      {!ret&&showForms&&<RequestSeedlingDownload runCode={prior.run_code} status={prior.status} kind="Vigor"/>}
+    </li>)}</ul>
   </details>;
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/database/supabase_client.dart';
+import 'lab_workspace_widgets.dart';
 
 String moistureStatus(dynamic status) =>
     const {
@@ -26,9 +27,11 @@ class MoistureRecordWorkflow extends StatefulWidget {
     required this.record,
     required this.onChanged,
     this.command = moistureRecordCommand,
+    this.evidence,
   });
   final Map<String, dynamic> record;
   final VoidCallback onChanged;
+  final Widget? evidence;
   final Future<void> Function(String, Map<String, dynamic>) command;
   @override
   State<MoistureRecordWorkflow> createState() => _MoistureRecordWorkflowState();
@@ -116,8 +119,7 @@ class _MoistureRecordWorkflowState extends State<MoistureRecordWorkflow> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (error != null) Text(error!, semanticsLabel: error),
-        if (message != null) Text(message!),
+        if (message != null) Semantics(liveRegion: true, child: Text(message!)),
         if (!open)
           OutlinedButton(
             onPressed: busy
@@ -131,90 +133,113 @@ class _MoistureRecordWorkflowState extends State<MoistureRecordWorkflow> {
               submit ? 'Kirim catatan MC ke QA' : 'Verifikasi catatan MC',
             ),
           ),
-        if (open) ...[
-          Text(
-            '${submit ? 'Kirim catatan MC tersimpan' : 'Pemeriksaan catatan oleh QA'} '
-            '· revisi ${widget.record['revision']}',
-          ),
-          const Text(
-            'Periksa label sampel, tanggal ukur, nama pelaksana, alat/metode '
-            'dan ketiga bacaan pada rincian. Ini bukan penilaian lulus/gagal atau pelepasan lot.',
-          ),
-          if (!submit) ...[
-            TextField(
-              controller: name,
-              enabled: !busy,
-              maxLength: 120,
-              decoration: const InputDecoration(
-                labelText: 'Nama petugas QA yang memeriksa',
-              ),
-              onChanged: (_) => setState(() {}),
-            ),
-            DropdownButtonFormField<String>(
-              initialValue: decision,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Keputusan catatan'),
-              items: const [
-                DropdownMenuItem(
-                  value: 'VERIFY_RECORD',
-                  child: Text('Verifikasi catatan'),
+        if (open)
+          LabFormCard(
+            title: [
+              submit
+                  ? 'Kirim catatan MC tersimpan'
+                  : 'Pemeriksaan catatan MC oleh QA',
+              if (widget.record['lot_code'] case final String lot) lot,
+              'revisi ${widget.record['revision']}',
+            ].join(' · '),
+            icon: submit ? Icons.outgoing_mail : Icons.fact_check_outlined,
+            children: [
+              if (widget.evidence != null) ...[
+                widget.evidence!,
+                const SizedBox(height: 12),
+              ],
+              if (!submit) ...[
+                TextField(
+                  controller: name,
+                  enabled: !busy,
+                  maxLength: 120,
+                  decoration: const InputDecoration(
+                    labelText: 'Nama petugas QA yang memeriksa',
+                  ),
+                  onChanged: (_) => setState(() {}),
                 ),
-                DropdownMenuItem(
-                  value: 'RETURN',
-                  child: Text('Kembalikan untuk diperbaiki'),
+                DropdownButtonFormField<String>(
+                  initialValue: decision,
+                  isExpanded: true,
+                  itemHeight: null,
+                  decoration: const InputDecoration(
+                    labelText: 'Keputusan catatan',
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'VERIFY_RECORD',
+                      child: Text('Verifikasi catatan'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'RETURN',
+                      child: Text('Kembalikan untuk diperbaiki'),
+                    ),
+                  ],
+                  onChanged: busy ? null : (v) => setState(() => decision = v!),
+                ),
+                TextField(
+                  controller: note,
+                  enabled: !busy,
+                  maxLength: 1000,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    labelText: decision == 'RETURN'
+                        ? 'Alasan perbaikan (wajib)'
+                        : 'Catatan QA (boleh kosong)',
+                  ),
+                  onChanged: (_) => setState(() {}),
                 ),
               ],
-              onChanged: busy ? null : (v) => setState(() => decision = v!),
-            ),
-            TextField(
-              controller: note,
-              enabled: !busy,
-              maxLength: 1000,
-              maxLines: 3,
-              decoration: InputDecoration(
-                labelText: decision == 'RETURN'
-                    ? 'Alasan perbaikan (wajib)'
-                    : 'Catatan QA (boleh kosong)',
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: confirmed,
+                onChanged: busy
+                    ? null
+                    : (v) => setState(() => confirmed = v == true),
+                title: Text(
+                  submit
+                      ? 'Saya sudah memeriksa revisi tersimpan. Setelah dikirim, isian dikunci.'
+                      : 'Saya sudah memeriksa catatan ini. Ini bukan keputusan mutu lulus/gagal.',
+                ),
               ),
-              onChanged: (_) => setState(() {}),
-            ),
-          ],
-          CheckboxListTile(
-            contentPadding: EdgeInsets.zero,
-            value: confirmed,
-            onChanged: busy
-                ? null
-                : (v) => setState(() => confirmed = v == true),
-            title: Text(
-              submit
-                  ? 'Saya sudah memeriksa revisi tersimpan. Setelah dikirim, isian dikunci.'
-                  : 'Saya sudah memeriksa catatan ini. Ini bukan keputusan mutu lulus/gagal.',
-            ),
+              if (!submit)
+                const Text('Verifikasi catatan bukan pelepasan lot.'),
+              FilledButton(
+                onPressed:
+                    busy ||
+                        !confirmed ||
+                        (!submit &&
+                            (name.text.trim().isEmpty ||
+                                (decision == 'RETURN' &&
+                                    note.text.trim().isEmpty)))
+                    ? null
+                    : execute,
+                child: Text(
+                  busy
+                      ? 'Menyimpan…'
+                      : submit
+                      ? 'Ya, kirim revisi ini'
+                      : decision == 'RETURN'
+                      ? 'Kembalikan ke Analis'
+                      : 'Simpan verifikasi catatan',
+                ),
+              ),
+              if (error != null)
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
+              TextButton(
+                onPressed: busy ? null : () => setState(() => open = false),
+                child: const Text('Batal'),
+              ),
+            ],
           ),
-          FilledButton(
-            onPressed:
-                busy ||
-                    !confirmed ||
-                    (!submit &&
-                        (name.text.trim().isEmpty ||
-                            (decision == 'RETURN' && note.text.trim().isEmpty)))
-                ? null
-                : execute,
-            child: Text(
-              busy
-                  ? 'Menyimpan…'
-                  : submit
-                  ? 'Ya, kirim revisi ini'
-                  : decision == 'RETURN'
-                  ? 'Kembalikan ke Analis'
-                  : 'Simpan verifikasi catatan',
-            ),
-          ),
-          TextButton(
-            onPressed: busy ? null : () => setState(() => open = false),
-            child: const Text('Batal'),
-          ),
-        ],
       ],
     );
   }

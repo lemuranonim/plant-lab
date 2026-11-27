@@ -36,7 +36,6 @@ void main() {
                       value: value,
                       enabled: true,
                       germination: germination,
-                      retest: false,
                       onChanged: (next) => setState(() => value = next),
                     ),
                   ],

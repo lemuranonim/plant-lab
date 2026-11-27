@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:plant_lab/app/theme/lab_theme.dart';
 import 'package:plant_lab/features/lab_request/presentation/lab_revalidation.dart';
 
 final source = <String, dynamic>{
@@ -37,12 +38,96 @@ Future<void> tapVisible(WidgetTester tester, Finder target) async {
     200,
     scrollable: find.byType(Scrollable).first,
   );
-  await tester.ensureVisible(target);
-  await tester.tap(target);
+  await tester.pumpAndSettle();
+  await Scrollable.ensureVisible(tester.element(target), alignment: .5);
+  await tester.pumpAndSettle();
+  await tester.tap(target.hitTestable());
   await tester.pumpAndSettle();
 }
 
 void main() {
+  testWidgets('switching lists does not reload or enable blocked actions', (
+    tester,
+  ) async {
+    final calls = <String>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: LabTheme.light,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: LabRevalidationPanel(
+              labSiteId: 'lab-only',
+              onCreated: () {},
+              command: (name, args) async {
+                calls.add(name);
+                expect(args['p_lab_site_id'], 'lab-only');
+                return name == 'get_lab_revalidation_options'
+                    ? {
+                        'can_authorize': true,
+                        'candidates': [
+                          source,
+                          {
+                            ...source,
+                            'run_id': 'blocked-source',
+                            'next_stage': 2,
+                            'blocked_reason': 'Tahap ini sudah disetujui.',
+                          },
+                        ],
+                        'offset': 0,
+                        'total': 2,
+                        'has_more': false,
+                      }
+                    : {
+                        'authorizations': [
+                          {...plan, 'can_cancel': true},
+                          {
+                            ...plan,
+                            'stage': 2,
+                            'status': 'DRAFT_CREATED',
+                            'can_start': false,
+                          },
+                          {
+                            ...plan,
+                            'stage': 3,
+                            'status': 'CANCELLED',
+                            'cancellation_reason': 'Sampel habis',
+                            'can_start': false,
+                          },
+                        ],
+                        'offset': 0,
+                        'total': 3,
+                        'has_more': false,
+                      };
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tapVisible(tester, find.text('Revalidation 1–3'));
+    await tapVisible(tester, find.text('Muat Revalidation'));
+    expect(find.text('Beri persetujuan Revalidation 1'), findsOneWidget);
+    expect(find.text('Beri persetujuan Revalidation 2'), findsNothing);
+    expect(find.text('Tahap ini sudah disetujui.'), findsOneWidget);
+    await tapVisible(tester, find.text('Persetujuan'));
+    expect(find.text('Menunggu cek sampel'), findsOneWidget);
+    expect(find.text('Catatan sudah dibuat'), findsOneWidget);
+    expect(find.text('Dibatalkan'), findsOneWidget);
+    expect(find.text('Alasan pembatalan: Sampel habis'), findsOneWidget);
+    expect(find.text('Siapkan catatan Revalidation 1'), findsOneWidget);
+    expect(find.text('Siapkan catatan Revalidation 2'), findsNothing);
+    expect(find.text('Admin nyata · 2026-11-16 08:00 WIB'), findsNothing);
+    await tapVisible(tester, find.text('Rincian persetujuan').first);
+    expect(find.text('Admin nyata · 2026-11-16 08:00 WIB'), findsOneWidget);
+    expect(find.text('Pemeriksaan simpanan'), findsOneWidget);
+    expect(
+      find.text('Batalkan persetujuan yang belum dimulai'),
+      findsOneWidget,
+    );
+    expect(calls, ['get_lab_revalidation_options', 'list_lab_revalidations']);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'Analis can search bounded sources but cannot authorize; no false empty on error',
     (tester) async {
@@ -82,8 +167,7 @@ void main() {
       await tester.tap(find.text('Revalidation 1–3'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'H59');
-      await tester.tap(find.text('Muat Revalidation'));
-      await tester.pumpAndSettle();
+      await tapVisible(tester, find.text('Muat Revalidation'));
       expect(
         find.textContaining('bukan berarti daftar kosong'),
         findsOneWidget,
@@ -93,8 +177,7 @@ void main() {
         findsNothing,
       );
       fail = false;
-      await tester.tap(find.text('Muat Revalidation'));
-      await tester.pumpAndSettle();
+      await tapVisible(tester, find.text('Muat Revalidation'));
       expect(find.text('Beri persetujuan Revalidation 1'), findsNothing);
       await tapVisible(tester, find.text('Sumber berikutnya'));
       expect(
@@ -123,7 +206,9 @@ void main() {
         final calls = <Map<String, dynamic>>[];
         await tester.pumpWidget(
           MaterialApp(
-            theme: ThemeData(brightness: brightness),
+            theme: brightness == Brightness.dark
+                ? LabTheme.dark
+                : LabTheme.light,
             builder: (context, child) => MediaQuery(
               data: MediaQuery.of(
                 context,
@@ -204,6 +289,10 @@ void main() {
         ),
       );
       expect(tester.widget<TextField>(find.byType(TextField)).readOnly, isTrue);
+      expect(find.text('ENGINEERING-ONLY'), findsOneWidget);
+      expect(find.text('Revalidation 1 · Cek sampel'), findsOneWidget);
+      expect(find.text('Sampel simpanan Lab'), findsOneWidget);
+      expect(find.byIcon(Icons.lock_outline), findsOneWidget);
       expect(find.text('SAMPLE-ONLY'), findsOneWidget);
       expect(find.text('Belum diisi'), findsOneWidget);
       await tapVisible(tester, find.byType(CheckboxListTile));
@@ -242,6 +331,7 @@ void main() {
             ...plan,
             'method_code': 'RET_16C_72H',
             'sample_plan': 'NEW_SAMPLE',
+            'stage': 2,
           },
           labSiteId: 'lab-only',
           command: (_, _) async => {},
@@ -249,6 +339,16 @@ void main() {
       ),
     );
     expect(tester.widget<TextField>(find.byType(TextField)).readOnly, isFalse);
+    expect(find.text('Revalidation 2 · Cek sampel'), findsOneWidget);
+    expect(find.text('Sampel baru'), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.text('Tahap 2')).style?.fontWeight,
+      FontWeight.w700,
+    );
+    expect(
+      tester.widget<Text>(find.text('Tahap 3')).style?.fontWeight,
+      isNot(FontWeight.w700),
+    );
     expect(find.text('SAMPLE-ONLY'), findsNothing);
     expect(find.text('4 × 100 benih'), findsOneWidget);
     final calls = <Map<String, dynamic>>[];

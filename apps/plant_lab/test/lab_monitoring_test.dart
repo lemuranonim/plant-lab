@@ -74,6 +74,99 @@ Map<String, dynamic> monitoringFixture({int offset = 0}) => {
   ],
 };
 void main() {
+  test('monitor focus keeps zero, unknown, and clock warnings distinct', () {
+    final row = Map<String, dynamic>.from(monitoringFixture()['entries'][0]);
+    expect(monitoringFocus(row)?.hours, 0);
+    expect(monitoringFocus(row)?.since, row['submitted_at']);
+    final missing = monitoringFocus({
+      ...row,
+      'waiting_qa_hours': null,
+      'submitted_at': null,
+    })!;
+    expect(missing.showHours, true);
+    expect(missing.hours, isNull);
+    final issue = monitoringFocus({...row, 'clock_issue': true})!;
+    expect(issue.warning, true);
+    expect(issue.showHours, false);
+    expect(monitoringFocus({...row, 'work_group': 'HISTORY'}), isNull);
+    final waiting = monitoringFocus({
+      ...row,
+      'work_group': 'WAITING_SAMPLE',
+      'received_at': null,
+    })!;
+    expect(waiting.label, 'Penerimaan sampel belum tercatat');
+    expect(waiting.showHours, false);
+  });
+
+  testWidgets('quick filter uses applied scope and detail pins the lot', (
+    t,
+  ) async {
+    t.view.physicalSize = const Size(390, 850);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.resetPhysicalSize);
+    addTearDown(t.view.resetDevicePixelRatio);
+    final calls = <Map<String, dynamic>>[];
+    const lot = 'DEMO-DCS-024';
+    await t.pumpWidget(
+      MaterialApp(
+        home: LabMonitoringScreen(
+          loadRecords: (args) async {
+            calls.add(Map.of(args));
+            final fixtures = monitoringFixture();
+            fixtures['entries'][0]['lot_code'] = lot;
+            return fixtures;
+          },
+        ),
+      ),
+    );
+    await t.pumpAndSettle();
+    Future<void> go(Finder finder, [double delta = 200]) async {
+      await t.scrollUntilVisible(
+        finder,
+        delta,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await t.ensureVisible(finder);
+      await t.pumpAndSettle();
+    }
+
+    final waiting = find.byKey(const ValueKey('monitor-quick-WAITING_QA'));
+    expect(find.byType(DropdownButtonFormField<String>), findsOneWidget);
+    await go(waiting);
+    await t.tap(waiting.hitTestable());
+    await t.pumpAndSettle();
+    expect(calls.last['p_work_group'], 'WAITING_QA');
+    expect(calls.last['p_lab_site_id'], 'memory-lab');
+    expect(calls.last['p_offset'], 0);
+    expect(t.widget<ChoiceChip>(waiting).selected, true);
+    final open = find.text('Buka rincian waktu');
+    await go(open);
+    expect(find.text('0 jam'), findsOneWidget);
+    await t.tap(open.hitTestable());
+    await t.pumpAndSettle();
+    final header = find.descendant(
+      of: find.byType(AppBar),
+      matching: find.text(lot),
+    );
+    expect(header.hitTestable(), findsOneWidget);
+    final top = t.getTopLeft(header);
+    expect(find.text('2026-11-18 08:00 WIB'), findsOneWidget);
+    expect(find.text('Belum dicatat'), findsWidgets);
+    await go(find.text('Buka menu catatan asal'));
+    expect(t.getTopLeft(header), top);
+    await t.pageBack();
+    await t.pumpAndSettle();
+    final search = find.byType(TextField);
+    await go(search, -180);
+    await t.enterText(search, 'isian belum diterapkan');
+    FocusManager.instance.primaryFocus?.unfocus();
+    await t.pumpAndSettle();
+    await go(waiting);
+    expect(t.widget<ChoiceChip>(waiting).onSelected, isNull);
+    expect(calls, hasLength(2));
+    expect(t.takeException(), isNull);
+  });
+
   test(
     'clock zero remains zero, missing is unavailable, invalid sources rejected',
     () {

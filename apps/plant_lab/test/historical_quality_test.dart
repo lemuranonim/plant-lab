@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:plant_lab/app/theme/lab_theme.dart';
 import 'package:plant_lab/features/lab_request/presentation/historical_quality_screen.dart';
 
 Map<String, dynamic> history({String lot = 'DEMO-RR-0002', int total = 1}) => {
@@ -66,10 +67,20 @@ final options = {
 };
 
 Future<void> choose(WidgetTester tester, String code) async {
-  await tester.tap(find.byType(DropdownButtonFormField<String>));
+  final dropdown = find.byType(DropdownButtonFormField<String>);
+  await Scrollable.ensureVisible(tester.element(dropdown), alignment: .5);
+  await tester.pumpAndSettle();
+  await tester.tap(dropdown);
   await tester.pumpAndSettle();
   await tester.tap(find.text(code).last);
   await tester.pumpAndSettle();
+}
+
+Future<void> showHistory(WidgetTester tester) async {
+  final show = find.text('Tampilkan histori');
+  await Scrollable.ensureVisible(tester.element(show), alignment: .5);
+  await tester.pumpAndSettle();
+  await tester.tap(show.hitTestable());
 }
 
 void main() {
@@ -138,6 +149,48 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+  testWidgets('Lab archive shows source counts without horizontal scrolling', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: LabTheme.light,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: const TextScaler.linear(1.5)),
+          child: child!,
+        ),
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: HistoricalQualityContent(data: history(), labStyle: true),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Germinasi / Vigor').hitTestable());
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('Pengamatan awal').hitTestable());
+    await tester.pumpAndSettle();
+    expect(find.byType(DataTable), findsNothing);
+    expect(find.text('1A · Baris 20'), findsOneWidget);
+    expect(find.text('0'), findsOneWidget);
+    expect(find.text('—'), findsNWidgets(3));
+    expect(
+      find.textContaining('ACCEPTED · bukan approval QA aplikasi'),
+      findsOneWidget,
+    );
+    final cells = find.text('Nilai sumber & posisi sel (1)');
+    await tester.ensureVisible(cells);
+    await tester.tap(cells.hitTestable());
+    await tester.pumpAndSettle();
+    expect(find.text('H20 · Normal'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('denied and error responses do not retain old lot content', (
     tester,
   ) async {
@@ -158,17 +211,15 @@ void main() {
     );
     await tester.pumpAndSettle();
     await choose(tester, 'DEMO-RR-0002');
-    await tester.ensureVisible(find.text('Tampilkan histori'));
-    await tester.tap(find.text('Tampilkan histori'));
+    await showHistory(tester);
     await tester.pumpAndSettle();
     expect(find.text('Histori lot DEMO-RR-0002'), findsOneWidget);
     await choose(tester, 'DEMO-R-0002');
     expect(find.text('Histori lot DEMO-RR-0002'), findsNothing);
-    await tester.ensureVisible(find.text('Tampilkan histori'));
-    await tester.tap(find.text('Tampilkan histori'));
+    await showHistory(tester);
     await tester.pumpAndSettle();
     expect(find.textContaining('tidak tersedia dalam cakupan'), findsOneWidget);
-    await tester.tap(find.text('Tampilkan histori'));
+    await showHistory(tester);
     await tester.pumpAndSettle();
     expect(find.textContaining('Tidak menggunakan data lama'), findsOneWidget);
     expect(find.text('Histori lot DEMO-RR-0002'), findsNothing);

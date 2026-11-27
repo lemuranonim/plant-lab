@@ -1,7 +1,11 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/database/supabase_client.dart';
 import 'lab_logbook_download.dart';
+import 'lab_workspace_widgets.dart';
+import 'routine_form_download.dart';
+import 'workflow_presentation.dart';
 
 const logbookStatuses = <String, String>{
   'DRAFT': 'Draft',
@@ -57,6 +61,46 @@ String logbookResult(Map<String, dynamic> row) {
 
 typedef LogbookLoader =
     Future<Map<String, dynamic>> Function(Map<String, dynamic> args);
+typedef LogbookFormLoader =
+    Future<Uint8List> Function(
+      String id,
+      int revision,
+      String format, {
+      required String module,
+    });
+typedef LogbookFormSharer =
+    Future<void> Function(Uint8List bytes, String name, String format);
+
+({String id, int revision, String module, String name})? logbookFormTarget(
+  Map<String, dynamic> row,
+) {
+  final id = row['entry_id'];
+  final revision = row['revision'];
+  if (id is! String ||
+      !RegExp(
+        r'^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$',
+        caseSensitive: false,
+      ).hasMatch(id) ||
+      revision is! int ||
+      revision < 1 ||
+      revision > 999999999) {
+    return null;
+  }
+  final method = row['method_code'];
+  final target = switch ((row['entry_kind'], method)) {
+    ('MC_DRAFT', 'MC_LAB') => (module: 'lab-moisture', name: 'MC-Lab'),
+    ('ROUTINE', 'RET_16C_72H') => (module: 'lab-ret', name: 'RET'),
+    ('ROUTINE', 'SAND_25C') => (module: 'lab-routine', name: 'Germinasi'),
+    ('ROUTINE', String code) when code.isNotEmpty && code != 'UNASSIGNED' => (
+      module: 'lab-routine',
+      name: 'Vigor',
+    ),
+    _ => null,
+  };
+  return target == null
+      ? null
+      : (id: id, revision: revision, module: target.module, name: target.name);
+}
 
 class LabLogbookScreen extends StatefulWidget {
   const LabLogbookScreen({
@@ -64,10 +108,14 @@ class LabLogbookScreen extends StatefulWidget {
     this.loadRecords,
     this.download = fetchLogbookExport,
     this.share = shareLogbookExport,
+    this.downloadForm = fetchLabForm,
+    this.shareForm = shareRoutineForm,
   });
   final LogbookLoader? loadRecords;
   final LogbookExporter download;
   final LogbookSharer share;
+  final LogbookFormLoader downloadForm;
+  final LogbookFormSharer shareForm;
   @override
   State<LabLogbookScreen> createState() => _LabLogbookScreenState();
 }
@@ -151,7 +199,9 @@ class _LabLogbookScreenState extends State<LabLogbookScreen> {
     changed = true;
   });
   Future<void> download() async {
-    if (working || changed || page == null) return;
+    if (working || changed || page == null || (page!['total'] as int) > 2000) {
+      return;
+    }
     setState(() {
       exporting = true;
       exportError = null;
@@ -174,6 +224,33 @@ class _LabLogbookScreenState extends State<LabLogbookScreen> {
     }
   }
 
+  List<String> appliedLabels() {
+    final current = page;
+    if (current == null) return const [];
+    final query = (applied['p_search'] as String).trim();
+    final origin = const {
+      'PLANT': 'Permintaan Plant',
+      'ROUTINE': 'Uji rutin Lab',
+      'MC': 'MC Lab',
+    }[applied['p_origin']];
+    final scope = [
+      for (final site in current['lab_sites'] as List)
+        if (site['id'] == applied['p_lab_site_id']) site['site_name'] as String,
+      if (query.isNotEmpty) 'Cari: $query',
+      if (origin != null) origin,
+      if (applied['p_method'] != 'ALL')
+        for (final m in current['method_options'] as List)
+          if (m['method_code'] == applied['p_method'])
+            m['method_name'] as String,
+      if (applied['p_status'] != 'ALL')
+        logbookStatuses[applied['p_status']] ?? applied['p_status'] as String,
+      if (applied['p_from'] != null || applied['p_to'] != null)
+        "${applied['p_date_basis'] == 'OBSERVED' ? 'Pengamatan' : 'Pencatatan'}: "
+            "${applied['p_from'] ?? 'tanpa awal'} – ${applied['p_to'] ?? 'tanpa akhir'} (WIB)",
+    ];
+    return scope;
+  }
+
   Widget select(String label, String key, Map<String, String> options) =>
       Padding(
         padding: const EdgeInsets.only(bottom: 16),
@@ -181,6 +258,7 @@ class _LabLogbookScreenState extends State<LabLogbookScreen> {
           key: ValueKey('$key:${filters[key]}:${options.keys.join()}'),
           initialValue: filters[key] as String?,
           isExpanded: true,
+          itemHeight: null,
           decoration: InputDecoration(labelText: label),
           items: options.entries
               .map(
@@ -246,85 +324,109 @@ class _LabLogbookScreenState extends State<LabLogbookScreen> {
     body: ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        const Card(
-          child: Padding(
-            padding: EdgeInsets.all(16),
-            child: Text(
-              'Baca saja. Satu catatan berarti satu percobaan uji, draft, atau item permintaan yang belum mulai. Uji ulang tetap terpisah; bukan jumlah lot, benih, atau permintaan. Histori Excel tetap terpisah. Analisis disetujui QA bukan pelepasan lot.',
-            ),
-          ),
+        const LabReadOnlyIntro(
+          title: 'Catatan kerja Lab',
+          icon: Icons.menu_book_outlined,
+          description:
+              'Catatan dari aplikasi, terpisah dari arsip Excel. Analisis disetujui QA bukan pelepasan lot.',
         ),
-        const SizedBox(height: 16),
-        if (catalog != null)
-          select('Lab', 'p_lab_site_id', {
-            for (final s in catalog!['lab_sites'] as List)
-              s['id'] as String: s['site_name'] as String,
-          }),
-        TextField(
-          controller: search,
-          maxLength: 120,
-          enabled: !working,
-          decoration: const InputDecoration(
-            labelText: 'Cari lot, hybrid, label, nomor uji',
-          ),
-          onChanged: (v) => patch('p_search', v),
-          onSubmitted: (_) => load(filters),
-        ),
-        const SizedBox(height: 16),
-        select('Dasar tanggal', 'p_date_basis', {
-          'RECORDED': 'Pertama dicatat di aplikasi',
-          'OBSERVED': 'Pengamatan final / ukur MC aktual',
-        }),
-        date('Dari tanggal (WIB)', 'p_from'),
-        date('Sampai tanggal (WIB)', 'p_to'),
-        const Text(
-          'Batas tanggal termasuk hari awal dan akhir. Jika memakai tanggal pengamatan, catatan tanpa waktu pengamatan tidak masuk rentang tanggal.',
-        ),
-        const SizedBox(height: 16),
-        select('Asal catatan', 'p_origin', {
-          'ALL': 'Semua asal',
-          'PLANT': 'Permintaan Plant',
-          'ROUTINE': 'Uji rutin Lab',
-          'MC': 'MC Lab',
-        }),
-        select('Metode', 'p_method', {
-          'ALL': 'Semua metode',
-          for (final m in (catalog?['method_options'] as List? ?? []))
-            m['method_code'] as String: m['method_name'] as String,
-        }),
-        select('Status', 'p_status', {
-          'ALL': 'Semua status',
-          ...logbookStatuses,
-        }),
-        Wrap(
-          spacing: 12,
-          runSpacing: 8,
+        LabFormCard(
+          title: 'Cari catatan',
+          icon: Icons.search,
           children: [
-            FilledButton(
-              onPressed: working ? null : () => load(filters),
-              child: const Text('Tampilkan catatan'),
+            TextField(
+              controller: search,
+              maxLength: 120,
+              enabled: !working,
+              textInputAction: TextInputAction.search,
+              decoration: const InputDecoration(
+                labelText: 'Cari lot, hybrid, label, nomor uji',
+              ),
+              onChanged: (v) => patch('p_search', v),
+              onSubmitted: (_) => load(filters),
             ),
-            OutlinedButton(
-              onPressed: working
-                  ? null
-                  : () {
-                      setState(() {
-                        final site = filters['p_lab_site_id'];
-                        filters = emptyLogbookFilters()
-                          ..['p_lab_site_id'] = site;
-                        search.clear();
-                      });
-                      load(filters);
-                    },
-              child: const Text('Hapus filter'),
+            ExpansionTile(
+              key: const PageStorageKey('logbook-filter'),
+              shape: const Border(),
+              collapsedShape: const Border(),
+              tilePadding: EdgeInsets.zero,
+              expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+              title: const Text('Filter lanjutan'),
+              subtitle: Text(
+                [
+                  for (final s in (catalog?['lab_sites'] as List? ?? []))
+                    if (s['id'] == filters['p_lab_site_id']) s['site_name'],
+                  'Tanggal, asal, metode, status',
+                ].join(' · '),
+              ),
+              children: [
+                if (catalog != null)
+                  select('Lab', 'p_lab_site_id', {
+                    for (final s in catalog!['lab_sites'] as List)
+                      s['id'] as String: s['site_name'] as String,
+                  }),
+                select('Asal catatan', 'p_origin', {
+                  'ALL': 'Semua asal',
+                  'PLANT': 'Permintaan Plant',
+                  'ROUTINE': 'Uji rutin Lab',
+                  'MC': 'MC Lab',
+                }),
+                select('Metode', 'p_method', {
+                  'ALL': 'Semua metode',
+                  for (final m in (catalog?['method_options'] as List? ?? []))
+                    m['method_code'] as String: m['method_name'] as String,
+                }),
+                select('Status', 'p_status', {
+                  'ALL': 'Semua status',
+                  ...logbookStatuses,
+                }),
+                select('Dasar tanggal', 'p_date_basis', {
+                  'RECORDED': 'Pertama dicatat di aplikasi',
+                  'OBSERVED': 'Pengamatan final / ukur MC aktual',
+                }),
+                date('Dari tanggal (WIB)', 'p_from'),
+                date('Sampai tanggal (WIB)', 'p_to'),
+                const Text(
+                  'Batas tanggal termasuk hari awal dan akhir. Jika memakai tanggal pengamatan, catatan tanpa waktu pengamatan tidak masuk rentang tanggal.',
+                ),
+                const SizedBox(height: 12),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                FilledButton(
+                  onPressed: working ? null : () => load(filters),
+                  child: const Text('Tampilkan catatan'),
+                ),
+                OutlinedButton(
+                  onPressed: working
+                      ? null
+                      : () {
+                          setState(() {
+                            final site = filters['p_lab_site_id'];
+                            filters = emptyLogbookFilters()
+                              ..['p_lab_site_id'] = site;
+                            search.clear();
+                          });
+                          load(filters);
+                        },
+                  child: const Text('Hapus filter'),
+                ),
+              ],
             ),
           ],
         ),
         if (changed && page != null)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Text(
-              'Filter berubah. Tekan Tampilkan catatan; hasil di bawah masih memakai filter sebelumnya.',
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Semantics(
+              liveRegion: true,
+              child: const Text(
+                'Filter berubah. Tekan Tampilkan catatan; hasil di bawah masih memakai filter sebelumnya.',
+              ),
             ),
           ),
         if (error != null)
@@ -346,8 +448,10 @@ class _LabLogbookScreenState extends State<LabLogbookScreen> {
           ),
         if (busy)
           const Padding(
-            padding: EdgeInsets.all(24),
-            child: Center(child: CircularProgressIndicator()),
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: LinearProgressIndicator(
+              semanticsLabel: 'Memuat catatan Lab',
+            ),
           ),
         if (page != null) ...[
           const SizedBox(height: 24),
@@ -356,58 +460,78 @@ class _LabLogbookScreenState extends State<LabLogbookScreen> {
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Ringkasan seluruh hasil filter, bukan hanya halaman ini.',
-          ),
           Text('Dimuat ${logbookWib(page!['as_of'])}'),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: OutlinedButton.icon(
-              onPressed: working || changed || (page!['total'] as int) > 2000
-                  ? null
-                  : download,
-              icon: const Icon(Icons.download),
-              label: const Text('Unduh rekap Excel'),
-            ),
+          const SizedBox(height: 8),
+          Wrap(
+            key: const ValueKey('logbook-applied-filters'),
+            spacing: 6,
+            runSpacing: 6,
+            children: [for (final label in appliedLabels()) LabLabel(label)],
           ),
-          const Text(
-            'Seluruh catatan sesuai filter diterapkan, bukan hanya 50 pada halaman ini. Maksimal 2000 catatan; persempit filter jika lebih. Data terbaru diambil saat diunduh, waktunya dicatat pada file. Ini rekap, bukan gabungan form pengujian.',
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              OutlinedButton.icon(
+                onPressed: working || changed || (page!['total'] as int) > 2000
+                    ? null
+                    : download,
+                icon: const Icon(Icons.download),
+                label: const Text('Unduh rekap Excel'),
+              ),
+              if (changed)
+                const Text(
+                  'Terapkan perubahan filter dahulu sebelum mengunduh.',
+                ),
+              if ((page!['total'] as int) > 2000)
+                const Text(
+                  'Lebih dari 2000 catatan cocok. Persempit tanggal atau filter agar rekap tidak terpotong.',
+                ),
+              if (exporting) const Text('Menyiapkan rekap Excel…'),
+              if (exportError != null)
+                Text(
+                  exportError!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+            ],
           ),
-          if (changed)
-            const Text('Terapkan perubahan filter dahulu sebelum mengunduh.'),
-          if ((page!['total'] as int) > 2000)
-            const Text(
-              'Lebih dari 2000 catatan cocok. Persempit tanggal atau filter agar rekap tidak terpotong.',
-            ),
-          if (exporting) const Text('Menyiapkan rekap Excel…'),
-          if (exportError != null)
-            Text(
-              exportError!,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
           const SizedBox(height: 12),
           Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  for (final e in <String, String>{
-                    'approved': 'Analisis disetujui QA',
-                    'draft': 'Draft',
-                    'waiting_qa': 'Menunggu QA',
-                    'retest': 'Perlu uji ulang',
-                    'other': 'Status lainnya',
-                  }.entries)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Text('${page!['summary'][e.key]} · ${e.value}'),
-                    ),
-                  Text(
-                    '${page!['summary']['missing_observation_time']} catatan belum punya waktu pengamatan final / ukur MC.',
-                  ),
-                ],
+            child: ExpansionTile(
+              key: const PageStorageKey('logbook-summary'),
+              shape: const Border(),
+              collapsedShape: const Border(),
+              title: const Text('Ringkasan & cara baca'),
+              subtitle: const Text(
+                'Seluruh hasil filter, bukan hanya halaman ini.',
               ),
+              childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Satu catatan berarti satu percobaan uji, draft, atau item permintaan yang belum mulai. Uji ulang terpisah; ini bukan jumlah lot, benih, atau permintaan.',
+                ),
+                const SizedBox(height: 12),
+                LabFieldGrid(
+                  fields: [
+                    for (final e in <String, String>{
+                      'approved': 'Analisis disetujui QA',
+                      'draft': 'Draft',
+                      'waiting_qa': 'Menunggu QA',
+                      'retest': 'Perlu uji ulang',
+                      'other': 'Status lainnya',
+                    }.entries)
+                      LabRecordValue(e.value, '${page!['summary'][e.key]}'),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '${page!['summary']['missing_observation_time']} catatan belum punya waktu pengamatan final / ukur MC.',
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Rekap Excel mengambil seluruh hasil filter saat diunduh (maksimal 2000 catatan). Form di rincian adalah satu catatan dan satu revisi.',
+                ),
+              ],
             ),
           ),
           if ((page!['entries'] as List).isEmpty)
@@ -418,7 +542,15 @@ class _LabLogbookScreenState extends State<LabLogbookScreen> {
               ),
             ),
           for (final row in page!['entries'] as List)
-            LogbookEntryCard(row: Map<String, dynamic>.from(row)),
+            LogbookEntryCard(
+              key: row['entry_id'] == null
+                  ? null
+                  : ValueKey((row['entry_kind'], row['entry_id'])),
+              row: Map<String, dynamic>.from(row),
+              allowForms: !changed && AppConfig.hostedPilot,
+              loadForm: widget.downloadForm,
+              shareForm: widget.shareForm,
+            ),
           Text(
             '${page!['total'] == 0 ? 0 : (page!['offset'] as int) + 1}–${(page!['offset'] as int) + (page!['entries'] as List).length} dari ${page!['total']} catatan',
           ),
@@ -460,60 +592,194 @@ class _LabLogbookScreenState extends State<LabLogbookScreen> {
 }
 
 class LogbookEntryCard extends StatelessWidget {
-  const LogbookEntryCard({super.key, required this.row});
+  const LogbookEntryCard({
+    super.key,
+    required this.row,
+    this.allowForms = false,
+    this.loadForm = fetchLabForm,
+    this.shareForm = shareRoutineForm,
+  });
   final Map<String, dynamic> row;
+  final bool allowForms;
+  final LogbookFormLoader loadForm;
+  final LogbookFormSharer shareForm;
   @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            logbookOrigins[row['entry_kind']] ?? row['entry_kind'].toString(),
-            style: Theme.of(context).textTheme.labelMedium,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            row['lot_code'] as String,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          Text('${row['hybrid']} · ${row['stage_code']}'),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Text(
-              logbookStatuses[row['status']] ?? row['status'].toString(),
-              style: const TextStyle(fontWeight: FontWeight.bold),
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final status = row['status'].toString();
+    final origin =
+        logbookOrigins[row['entry_kind']] ?? row['entry_kind'].toString();
+    return LabFormCard(
+      title: row['lot_code'] as String,
+      icon: Icons.inventory_2_outlined,
+      hint: "${row['hybrid']} · ${row['stage_code']} · ${row['method_name']}",
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            if (origin != row['method_name']) LabLabel(origin),
+            WorkflowStatusBadge(
+              status: status,
+              label: logbookStatuses[status] ?? status,
             ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Text(
+          [
+            if (row['run_code'] ?? row['request_code'] case final String code)
+              code,
+            if (row['attempt_no'] != null) 'Percobaan ke-${row['attempt_no']}',
+            if (row['revision'] != null) 'Revisi ${row['revision']}',
+          ].join(' · '),
+          style: theme.textTheme.bodySmall,
+        ),
+        Text(logbookResult(row), style: theme.textTheme.titleSmall),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => _LogbookEntryDetail(
+                  row: row,
+                  allowForms: allowForms,
+                  loadForm: loadForm,
+                  shareForm: shareForm,
+                ),
+              ),
+            ),
+            label: const Text('Buka rincian'),
+            icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+            iconAlignment: IconAlignment.end,
           ),
-          Text(row['method_name'] as String),
-          Text('Label sampel: ${row['sample_reference'] ?? 'Belum dicatat'}'),
-          Text('Permintaan: ${row['request_code'] ?? 'Tidak ada'}'),
-          Text('Nomor uji: ${row['run_code'] ?? 'Belum ada'}'),
-          if (row['attempt_no'] != null)
-            Text('Percobaan ke-${row['attempt_no']}'),
-          if (row['revision'] != null) Text('Revisi ${row['revision']}'),
-          const Divider(),
-          Text('Pertama dicatat: ${logbookWib(row['recorded_at'])}'),
-          Text('Pengamatan final / ukur MC: ${logbookWib(row['observed_at'])}'),
-          Text('Pemeriksaan QA terakhir: ${logbookWib(row['reviewed_at'])}'),
-          const SizedBox(height: 12),
-          Text(
-            logbookResult(row),
-            style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+      ],
+    );
+  }
+}
+
+class _LogbookEntryDetail extends StatelessWidget {
+  const _LogbookEntryDetail({
+    required this.row,
+    required this.allowForms,
+    required this.loadForm,
+    required this.shareForm,
+  });
+  final Map<String, dynamic> row;
+  final bool allowForms;
+  final LogbookFormLoader loadForm;
+  final LogbookFormSharer shareForm;
+
+  @override
+  Widget build(BuildContext context) {
+    final target = logbookFormTarget(row);
+    final theme = Theme.of(context);
+    final status = row['status'].toString();
+    final code = row['run_code'] ?? row['request_code'];
+    return Scaffold(
+      appBar: AppBar(
+        toolbarHeight: LabLotTitle.toolbarHeight(context),
+        title: LabLotTitle(
+          lot: row['lot_code'] as String,
+          reference: code?.toString() ?? 'Rincian catatan Lab',
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          LabFormCard(
+            title: row['method_name'] as String,
+            icon: Icons.fact_check_outlined,
+            hint:
+                "${row['hybrid']} · ${row['stage_code']} · ${logbookOrigins[row['entry_kind']] ?? row['entry_kind']}",
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: WorkflowStatusBadge(
+                  status: status,
+                  label: logbookStatuses[status] ?? status,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(logbookResult(row), style: theme.textTheme.titleMedium),
+              const SizedBox(height: 4),
+              Text(switch (row['result_state']) {
+                'QA_APPROVED' => 'Persetujuan analisis bukan pelepasan lot.',
+                'DRAFT_MEAN' ||
+                'MC_RECORD_MEAN' => 'MC dicatat tanpa penilaian lulus/gagal.',
+                _ => 'Belum menjadi analisis yang disetujui QA.',
+              }),
+            ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            row['result_state'] == 'QA_APPROVED'
-                ? 'Analisis disetujui QA; bukan pelepasan lot.'
-                : row['result_state'] == 'DRAFT_MEAN'
-                ? 'Masih draft MC. Belum ada penilaian lulus/gagal.'
-                : row['result_state'] == 'MC_RECORD_MEAN'
-                ? 'QA hanya memeriksa catatan MC. Tidak menilai lulus/gagal dan bukan pelepasan lot.'
-                : 'Belum menjadi analisis yang disetujui QA.',
+          if (target != null && allowForms)
+            RoutineFormDownload(
+              record: {
+                'id': target.id,
+                'revision': target.revision,
+                'method_code': row['method_code'],
+              },
+              title: 'Form pengujian · revisi ${target.revision}',
+              description: 'PDF atau Excel untuk satu catatan ini.',
+              formName: target.name,
+              load: (id, revision, format) =>
+                  loadForm(id, revision, format, module: target.module),
+              share: shareForm,
+            ),
+          if (target != null && AppConfig.hostedPilot && !allowForms)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: Text(
+                'Kembali dan terapkan filter sebelum mengunduh form.',
+              ),
+            ),
+          if (row['entry_kind'] == 'PLANT_RUN')
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: Text(
+                'Cari nomor permintaan atau lot ini di Antrean pengujian Lab untuk membuka form yang tersedia.',
+              ),
+            ),
+          LabFormCard(
+            title: 'Rincian catatan & waktu',
+            icon: Icons.schedule_outlined,
+            children: [
+              LabFieldGrid(
+                fields: [
+                  LabRecordValue(
+                    'Label sampel',
+                    row['sample_reference']?.toString(),
+                  ),
+                  LabRecordValue(
+                    'Permintaan',
+                    '${row['request_code'] ?? 'Tidak ada'}',
+                  ),
+                  LabRecordValue(
+                    'Nomor uji',
+                    '${row['run_code'] ?? 'Belum ada'}',
+                  ),
+                  if (row['attempt_no'] != null)
+                    LabRecordValue('Percobaan ke', '${row['attempt_no']}'),
+                  if (row['revision'] != null)
+                    LabRecordValue('Revisi', '${row['revision']}'),
+                  LabRecordValue(
+                    'Pertama dicatat',
+                    logbookWib(row['recorded_at']),
+                  ),
+                  LabRecordValue(
+                    'Pengamatan final / ukur MC',
+                    logbookWib(row['observed_at']),
+                  ),
+                  LabRecordValue(
+                    'Pemeriksaan QA terakhir',
+                    logbookWib(row['reviewed_at']),
+                  ),
+                ],
+              ),
+            ],
           ),
         ],
       ),
-    ),
-  );
+    );
+  }
 }

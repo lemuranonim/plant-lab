@@ -12,6 +12,7 @@ import 'routine_lab_screen.dart';
 import 'moisture_lab_screen.dart';
 import 'lab_logbook_screen.dart';
 import 'lab_monitoring_screen.dart';
+import 'lab_workspace_widgets.dart';
 import 'plant_sample_request_screen.dart';
 import 'standalone_request_actions.dart';
 import 'standalone_sample_handoff.dart';
@@ -289,6 +290,249 @@ class _StandaloneQueueScreenState extends ConsumerState<StandaloneQueueScreen> {
     ];
   }
 
+  List<Widget> _requestActions(
+    BuildContext context,
+    WidgetRef ref,
+    PreviewLabRequest request,
+    AppVariant variant, {
+    required bool canAccept,
+    required bool analyst,
+    required bool reviewer,
+  }) {
+    void refresh() => ref.invalidate(standaloneQueueProvider);
+    return [
+      if (canAccept && request.status == 'REQUESTED')
+        StandaloneAcceptButton(
+          key: ValueKey(request.requestId),
+          requestId: request.requestId,
+          onAccepted: refresh,
+        ),
+      ..._sampleWidgets(context, ref, request, variant),
+      if (request.testCodes.length == 1 &&
+          request.testCodes.single == 'GERMINATION')
+        StandaloneGermination(
+          requestId: request.requestId,
+          requestStatus: request.status,
+          run: request.germination,
+          analyst: analyst,
+          reviewer: reviewer,
+          onSaved: refresh,
+        ),
+      for (final run in request.vigour)
+        StandaloneVigour(
+          key: ValueKey('${run['item_id']}:${run['run_id']}'),
+          run: run,
+          requestStatus: request.status,
+          analyst: analyst,
+          reviewer: reviewer,
+          onSaved: refresh,
+        ),
+    ];
+  }
+
+  String _labTests(PreviewLabRequest request) {
+    final methods = request.vigour
+        .map((run) => run['method_name'])
+        .whereType<String>()
+        .where((method) => method.isNotEmpty)
+        .toSet();
+    final tests = request.testCodes.toSet().map(
+      (code) => code == 'VIGOUR' && methods.isNotEmpty
+          ? methods.join(' · ')
+          : workflowTest(code),
+    );
+    return tests.isEmpty ? '—' : tests.join(' · ');
+  }
+
+  void _openLabRequest(PreviewLabRequest initial) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => Consumer(
+          builder: (context, detailRef, _) =>
+              _labRequestDetail(context, detailRef, initial),
+        ),
+      ),
+    );
+  }
+
+  Widget _labRequestDetail(
+    BuildContext context,
+    WidgetRef detailRef,
+    PreviewLabRequest initial,
+  ) {
+    final access = detailRef.watch(accessContextProvider);
+    final queue = detailRef.watch(standaloneQueueProvider);
+    final variant = detailRef.watch(appVariantProvider);
+    final loaded = queue.valueOrNull?.requests
+        .where((request) => request.requestId == initial.requestId)
+        .firstOrNull;
+    final waiting = access.isLoading || queue.isLoading;
+    final roles = access.valueOrNull?.roles
+        .where((role) => role.moduleCode == variant.code)
+        .map((role) => role.roleCode);
+    final analyst = roles?.contains('LAB_ANALYST') ?? false;
+    final reviewer = roles?.contains('LAB_QA_APPROVER') ?? false;
+    final canAccept =
+        AppConfig.canonicalWritesEnabled && (roles?.isNotEmpty ?? false);
+    void reload() {
+      detailRef.invalidate(accessContextProvider);
+      detailRef.invalidate(standaloneQueueProvider);
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        toolbarHeight: LabLotTitle.toolbarHeight(context),
+        title: loaded == null && !waiting
+            ? const Text('Detail permintaan')
+            : LabLotTitle(
+                lot: (loaded ?? initial).lotCode ?? 'Lot belum tersedia',
+                reference: (loaded ?? initial).requestCode,
+              ),
+      ),
+      body: switch ((access, queue, variant.isLab, loaded)) {
+        (AsyncError(), _, _, _) || (_, AsyncError(), _, _) => Center(
+          child: TextButton(
+            onPressed: reload,
+            child: const Text('Muat ulang detail'),
+          ),
+        ),
+        (AsyncData(), AsyncData(), true, final request?)
+            when !waiting && (roles?.isNotEmpty ?? false) =>
+          RefreshIndicator(
+            onRefresh: () => detailRef.refresh(standaloneQueueProvider.future),
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    WorkflowStatusBadge(status: request.status),
+                    if (request.lotPair != null)
+                      Text(request.lotPair!.testedStage),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  _labTests(request),
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 14),
+                WorkflowNote(
+                  title: 'Langkah berikutnya',
+                  text: labQueueCue(
+                    request.status,
+                    writes: AppConfig.canonicalWritesEnabled,
+                    analyst: analyst,
+                    reviewer: reviewer,
+                  ),
+                  compact: true,
+                ),
+                if (queue.valueOrNull?.vigourLookupFailed ?? false)
+                  const Text('Rincian metode Vigor belum dapat dimuat.'),
+                ..._requestActions(
+                  context,
+                  detailRef,
+                  request,
+                  variant,
+                  canAccept: canAccept,
+                  analyst: analyst,
+                  reviewer: reviewer,
+                ),
+                ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  childrenPadding: const EdgeInsets.only(bottom: 12),
+                  expandedCrossAxisAlignment: CrossAxisAlignment.start,
+                  title: const Text('Rincian permintaan & pasangan lot'),
+                  children: [
+                    SelectableText(request.requestCode),
+                    Text('Status sistem: ${request.status}'),
+                    if (request.requestedAt != null)
+                      Text('Tanggal: ${request.requestedAt!.split('T').first}'),
+                    if (request.instruction?.isNotEmpty ?? false)
+                      Text('Instruksi: ${request.instruction}'),
+                    const SizedBox(height: 8),
+                    StandaloneLotReference(
+                      testedCode: request.lotCode,
+                      pair: request.lotPair,
+                    ),
+                    if (queue.valueOrNull?.pairLookupFailed ?? false)
+                      const Text('Rujukan pasangan lot belum dapat dimuat.'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        _ when waiting => const Center(child: CircularProgressIndicator()),
+        _ => const Center(
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('Permintaan tidak tersedia dalam antrean Anda.'),
+          ),
+        ),
+      },
+    );
+  }
+
+  Widget _labQueueCard(
+    BuildContext context,
+    PreviewLabRequest request, {
+    required bool analyst,
+    required bool reviewer,
+  }) => Card(
+    margin: const EdgeInsets.only(bottom: 12),
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LabLotTitle(
+            lot: request.lotCode ?? 'Lot belum tersedia',
+            reference: request.requestCode,
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              WorkflowStatusBadge(status: request.status),
+              Text(_labTests(request)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Langkah berikutnya',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            labQueueCue(
+              request.status,
+              writes: AppConfig.canonicalWritesEnabled,
+              analyst: analyst,
+              reviewer: reviewer,
+            ),
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              key: ValueKey('lab-open-request-${request.requestId}'),
+              onPressed: () => _openLabRequest(request),
+              icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+              label: const Text('Buka detail'),
+              iconAlignment: IconAlignment.end,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final variant = ref.watch(appVariantProvider);
@@ -301,8 +545,6 @@ class _StandaloneQueueScreenState extends ConsumerState<StandaloneQueueScreen> {
         <String>[];
     final analyst = variant.isLab && roles.contains('LAB_ANALYST');
     final reviewer = variant.isLab && roles.contains('LAB_QA_APPROVER');
-    final canAccept =
-        AppConfig.canonicalWritesEnabled && variant.isLab && roles.isNotEmpty;
     final sites = access?.sites
         .where((s) => s.siteType == variant.code)
         .map((s) => s.siteName)
@@ -338,6 +580,19 @@ class _StandaloneQueueScreenState extends ConsumerState<StandaloneQueueScreen> {
         ).showSnackBar(SnackBar(content: Text('Permintaan diajukan: $code')));
       }
     }
+
+    void openLabPage(Widget page) => Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => page));
+    final scope = [
+      access?.primaryRoleName ?? 'Role belum tersedia',
+      if (sites?.isNotEmpty ?? false) sites!,
+    ].join(' · ');
+    final mode = AppConfig.hostedPilot
+        ? 'Pilot operasional · Online · Data asli'
+        : 'Preview lokal';
+    final showLabMenu =
+        AppConfig.hostedPilot && variant.isLab && (analyst || reviewer);
 
     return Scaffold(
       appBar: AppBar(
@@ -375,56 +630,68 @@ class _StandaloneQueueScreenState extends ConsumerState<StandaloneQueueScreen> {
         ],
       ),
       bottomNavigationBar: AppConfig.hostedPilot && access != null
-          ? NavigationBar(
-              selectedIndex: 0,
-              onDestinationSelected: (index) {
-                if (index == 1) {
-                  if (variant.isPlant) {
+          ? _queueNavigation(
+              variant.isLab,
+              NavigationBar(
+                selectedIndex: 0,
+                animationDuration:
+                    variant.isLab && MediaQuery.disableAnimationsOf(context)
+                    ? Duration.zero
+                    : null,
+                onDestinationSelected: (index) {
+                  if (index == 1) {
+                    if (variant.isPlant) {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => PlantOperationsScreen(
+                            userId: access.userId,
+                            reviewer: roles.contains('PLANT_SPV'),
+                          ),
+                        ),
+                      );
+                    } else {
+                      history();
+                    }
+                  }
+                  if (index == 2) {
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
-                        builder: (_) => PlantOperationsScreen(
-                          userId: access.userId,
-                          reviewer: roles.contains('PLANT_SPV'),
-                        ),
+                        builder: (_) =>
+                            PiQualityScreen(isPlant: variant.isPlant),
                       ),
                     );
-                  } else {
-                    history();
                   }
-                }
-                if (index == 2) {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => PiQualityScreen(isPlant: variant.isPlant),
+                },
+                destinations: [
+                  const NavigationDestination(
+                    icon: Icon(Icons.science_outlined),
+                    selectedIcon: Icon(Icons.science),
+                    label: 'Permintaan',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(
+                      variant.isPlant ? Icons.edit_note : Icons.history,
                     ),
-                  );
-                }
-              },
-              destinations: [
-                const NavigationDestination(
-                  icon: Icon(Icons.science_outlined),
-                  selectedIcon: Icon(Icons.science),
-                  label: 'Permintaan',
-                ),
-                NavigationDestination(
-                  icon: Icon(variant.isPlant ? Icons.edit_note : Icons.history),
-                  label: variant.isPlant ? 'Input harian' : 'Histori Excel',
-                ),
-                NavigationDestination(
-                  icon: const Icon(Icons.fact_check_outlined),
-                  label: variant.isPlant ? 'Mutu PI' : 'Sumber Plant',
-                ),
-              ],
+                    label: variant.isPlant ? 'Input harian' : 'Histori Excel',
+                  ),
+                  NavigationDestination(
+                    icon: const Icon(Icons.fact_check_outlined),
+                    label: variant.isPlant ? 'Mutu PI' : 'Sumber Plant',
+                  ),
+                ],
+              ),
             )
           : null,
       body: ref
           .watch(standaloneQueueProvider)
           .when(
-            loading: () => const Center(
-              child: CircularProgressIndicator(
-                semanticsLabel: 'Memuat antrean',
-              ),
-            ),
+            loading: () => variant.isLab
+                ? const LabQueueLoading()
+                : const Center(
+                    child: CircularProgressIndicator(
+                      semanticsLabel: 'Memuat antrean',
+                    ),
+                  ),
             error: (_, _) => Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
@@ -466,32 +733,32 @@ class _StandaloneQueueScreenState extends ConsumerState<StandaloneQueueScreen> {
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.all(16),
                   children: [
-                    Text(
-                      [
-                        access?.primaryRoleName ?? 'Role belum tersedia',
-                        if (sites?.isNotEmpty ?? false) sites!,
-                      ].join(' · '),
-                      style: Theme.of(context).textTheme.labelMedium,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      variant.isPlant
-                          ? 'Permintaan & hasil Lab'
-                          : 'Antrean pengujian Lab',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      AppConfig.hostedPilot
-                          ? 'Pilot operasional · Online · Data asli'
-                          : 'Preview lokal',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    WorkflowNote(
-                      title: guide.title,
-                      text: guide.text,
-                      compact: true,
-                    ),
+                    if (variant.isLab)
+                      LabQueueHero(scope: scope, mode: mode)
+                    else ...[
+                      Text(
+                        scope,
+                        style: Theme.of(context).textTheme.labelMedium,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Permintaan & hasil Lab',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(mode, style: Theme.of(context).textTheme.bodySmall),
+                    ],
+                    if (variant.isLab)
+                      LabHelp(
+                        label: 'Bantuan antrean',
+                        text: '${guide.title}\n\n${guide.text}',
+                      )
+                    else
+                      WorkflowNote(
+                        title: guide.title,
+                        text: guide.text,
+                        compact: true,
+                      ),
                     if (AppConfig.canonicalWritesEnabled && variant.isPlant)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 12),
@@ -501,67 +768,62 @@ class _StandaloneQueueScreenState extends ConsumerState<StandaloneQueueScreen> {
                           label: const Text('Ajukan Permintaan Uji'),
                         ),
                       ),
-                    if (AppConfig.hostedPilot &&
-                        variant.isLab &&
-                        (analyst || reviewer))
+                    if (showLabMenu) ...[
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 12),
-                        child: OutlinedButton.icon(
-                          onPressed: () => Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => const RoutineLabScreen(),
-                            ),
-                          ),
+                        child: FilledButton.icon(
+                          onPressed: () =>
+                              openLabPage(const RoutineLabScreen()),
                           icon: const Icon(Icons.edit_note),
                           label: const Text('Catatan uji rutin & QA'),
                         ),
                       ),
-                    if (AppConfig.hostedPilot &&
-                        variant.isLab &&
-                        (analyst || reviewer))
-                      OutlinedButton.icon(
-                        onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const MoistureLabScreen(),
+                      LabMenuGrid(
+                        cards: [
+                          LabMenuCard(
+                            icon: Icons.water_drop_outlined,
+                            label: 'MC Lab',
+                            caption: !AppConfig.canonicalWritesEnabled
+                                ? 'Lihat catatan kadar air.'
+                                : analyst && reviewer
+                                ? 'Catat dan verifikasi hasil sesuai penugasan.'
+                                : analyst
+                                ? 'Catat pembacaan kadar air.'
+                                : 'Verifikasi catatan kadar air.',
+                            onTap: () => openLabPage(const MoistureLabScreen()),
                           ),
-                        ),
-                        icon: const Icon(Icons.water_drop_outlined),
-                        label: const Text('MC Lab · catatan draft'),
-                      ),
-                    if (AppConfig.hostedPilot &&
-                        variant.isLab &&
-                        (analyst || reviewer))
-                      OutlinedButton.icon(
-                        onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const LabLogbookScreen(),
+                          LabMenuCard(
+                            icon: Icons.menu_book_outlined,
+                            label: 'Buku pengujian Lab',
+                            caption: 'Telusuri catatan dan rekap.',
+                            onTap: () => openLabPage(const LabLogbookScreen()),
                           ),
-                        ),
-                        icon: const Icon(Icons.menu_book_outlined),
-                        label: const Text('Buku pengujian Lab'),
-                      ),
-                    if (AppConfig.hostedPilot &&
-                        variant.isLab &&
-                        (analyst || reviewer))
-                      OutlinedButton.icon(
-                        onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const LabMonitoringScreen(),
+                          LabMenuCard(
+                            icon: Icons.query_stats,
+                            label: 'Pemantauan kerja Lab',
+                            caption: 'Lihat status dan waktu pekerjaan.',
+                            onTap: () =>
+                                openLabPage(const LabMonitoringScreen()),
                           ),
-                        ),
-                        icon: const Icon(Icons.query_stats),
-                        label: const Text('Pemantauan kerja Lab'),
+                          if (AppConfig.plantSampleRequestsEnabled)
+                            LabMenuCard(
+                              icon: Icons.inventory_2_outlined,
+                              label: 'Permintaan sampel ke Plant',
+                              caption: 'Minta dan cocokkan sampel fisik.',
+                              onTap: () => openLabPage(
+                                PlantSampleRequestScreen(module: variant.code),
+                              ),
+                            ),
+                        ],
                       ),
+                    ],
                     const SizedBox(height: 12),
                     if (AppConfig.plantSampleRequestsEnabled &&
-                        (analyst ||
-                            reviewer ||
-                            (variant.isPlant &&
-                                roles.any(
-                                  (role) =>
-                                      role == 'PLANT_OPERATOR' ||
-                                      role == 'PLANT_SPV',
-                                ))))
+                        variant.isPlant &&
+                        roles.any(
+                          (role) =>
+                              role == 'PLANT_OPERATOR' || role == 'PLANT_SPV',
+                        ))
                       OutlinedButton.icon(
                         onPressed: () => Navigator.of(context).push(
                           MaterialPageRoute<void>(
@@ -570,11 +832,7 @@ class _StandaloneQueueScreenState extends ConsumerState<StandaloneQueueScreen> {
                           ),
                         ),
                         icon: const Icon(Icons.inventory_2_outlined),
-                        label: Text(
-                          variant.isLab
-                              ? 'Permintaan sampel ke Plant'
-                              : 'Permintaan sampel dari Lab',
-                        ),
+                        label: const Text('Permintaan sampel dari Lab'),
                       ),
                     if (AppConfig.hostedPilot && variant.isPlant)
                       const ApprovedRoutineResultsPanel(module: 'PLANT'),
@@ -644,73 +902,59 @@ class _StandaloneQueueScreenState extends ConsumerState<StandaloneQueueScreen> {
                             : 'Periksa kode lot atau ubah filter status.',
                       ),
                     for (final request in visible)
-                      Card(
-                        margin: const EdgeInsets.only(bottom: 16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            StandaloneRequestHeading(
-                              requestCode: request.requestCode,
-                              status: request.status,
-                              lotCode: request.lotCode,
-                              pair: request.lotPair,
-                              details: [
-                                'Uji: ${request.testCodes.toSet().map(workflowTest).join(' · ')}',
-                                if (request.requestedAt != null)
-                                  'Tanggal: ${request.requestedAt!.split('T').first}',
-                                if (request.instruction?.isNotEmpty ?? false)
-                                  'Instruksi: ${request.instruction}',
-                              ].join('\n'),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
+                      if (variant.isLab)
+                        _labQueueCard(
+                          context,
+                          request,
+                          analyst: analyst,
+                          reviewer: reviewer,
+                        )
+                      else
+                        Card(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              StandaloneRequestHeading(
+                                requestCode: request.requestCode,
+                                status: request.status,
+                                lotCode: request.lotCode,
+                                pair: request.lotPair,
+                                details: [
+                                  'Uji: ${request.testCodes.toSet().map(workflowTest).join(' · ')}',
+                                  if (request.requestedAt != null)
+                                    'Tanggal: ${request.requestedAt!.split('T').first}',
+                                  if (request.instruction?.isNotEmpty ?? false)
+                                    'Instruksi: ${request.instruction}',
+                                ].join('\n'),
                               ),
-                              child: WorkflowNote(
-                                title: 'Langkah berikutnya',
-                                text: workflowNextStep(
-                                  request.status,
-                                  variant.isPlant,
-                                  reviewer: reviewer,
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
                                 ),
-                                compact: true,
+                                child: WorkflowNote(
+                                  title: 'Langkah berikutnya',
+                                  text: workflowNextStep(
+                                    request.status,
+                                    variant.isPlant,
+                                    reviewer: reviewer,
+                                  ),
+                                  compact: true,
+                                ),
                               ),
-                            ),
-                            if (canAccept && request.status == 'REQUESTED')
-                              StandaloneAcceptButton(
-                                key: ValueKey(request.requestId),
-                                requestId: request.requestId,
-                                onAccepted: () =>
-                                    ref.invalidate(standaloneQueueProvider),
-                              ),
-                            ..._sampleWidgets(context, ref, request, variant),
-                            if (request.testCodes.length == 1 &&
-                                request.testCodes.single == 'GERMINATION')
-                              StandaloneGermination(
-                                requestId: request.requestId,
-                                requestStatus: request.status,
-                                run: request.germination,
+                              ..._requestActions(
+                                context,
+                                ref,
+                                request,
+                                variant,
+                                canAccept: false,
                                 analyst: analyst,
                                 reviewer: reviewer,
-                                onSaved: () =>
-                                    ref.invalidate(standaloneQueueProvider),
                               ),
-                            for (final run in request.vigour)
-                              StandaloneVigour(
-                                key: ValueKey(
-                                  '${run['item_id']}:${run['run_id']}',
-                                ),
-                                run: run,
-                                requestStatus: request.status,
-                                analyst: analyst,
-                                reviewer: reviewer,
-                                onSaved: () =>
-                                    ref.invalidate(standaloneQueueProvider),
-                              ),
-                            const SizedBox(height: 8),
-                          ],
+                              const SizedBox(height: 8),
+                            ],
+                          ),
                         ),
-                      ),
                     const SizedBox(height: 16),
                     Text(
                       'Referensi & histori',
@@ -759,4 +1003,11 @@ class _StandaloneQueueScreenState extends ConsumerState<StandaloneQueueScreen> {
           ),
     );
   }
+
+  Widget _queueNavigation(bool lab, NavigationBar bar) => !lab
+      ? bar
+      : Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+          child: ClipRRect(borderRadius: BorderRadius.circular(28), child: bar),
+        );
 }

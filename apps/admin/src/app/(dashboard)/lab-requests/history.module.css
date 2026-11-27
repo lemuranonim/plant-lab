@@ -18,4 +18,14 @@
 .scroll caption { text-align: left; padding: .5rem 0; color: var(--text-secondary); }
 .scroll small { display: block; margin-top: .3rem; color: var(--text-secondary); }
 .pagination { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1rem; }
+.compact { display: none; }
+@media (max-width: 700px) {
+  .browser[data-lab-history] .scroll { display: none; }
+  .browser[data-lab-history] .compact { display: block; }
+  .compact:is(ul), .compact ul { list-style: none; padding: 0; margin: .5rem 0 0; }
+  .compact li { margin-block: .5rem; padding: .75rem; border: 1px solid var(--border); border-radius: var(--lab-input-radius); background: var(--bg-surface); }
+  .compact dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem; margin: .6rem 0 0; }
+  .compact dt, .compact small { color: var(--text-secondary); font-size: .8rem; }
+  .compact dd { margin: .15rem 0 0; font-weight: 600; }
+}
 @media (max-width: 700px) { .controls { grid-template-columns: minmax(0, 1fr); } .facts { grid-template-columns: minmax(0, 1fr); } .facts dd { margin-bottom: .5rem; } .browser { padding: .8rem; } .record, .phase { padding: .6rem; } }

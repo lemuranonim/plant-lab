@@ -44,7 +44,7 @@ export default function RoutineSampleReferencePicker({ labSiteId, lotId, value, 
       <button type="button" className="btn" onClick={() => { setSearch(''); dialog.current?.showModal(); void load(''); }}>Pilih label tercatat</button>
       <button type="button" className="btn" onClick={() => { setManual(true); input.current?.focus(); }}>Isi manual</button>
     </div>}
-    <small>{locked ? 'Uji ulang memakai referensi sampel semula; tidak dapat diganti.' : 'Pilih label untuk lot ini atau isi sesuai label fisik. Pilihan hanya mengisi referensi, bukan waktu atau hasil uji.'}</small>
+    <small>{locked ? 'Label sumber terkunci.' : 'Cocokkan dengan label fisik.'}</small>
     <dialog ref={dialog} className={styles.referenceDialog} aria-labelledby="sample-reference-title" onCancel={close}>
       <h2 id="sample-reference-title">Pilih label sampel</h2>
       <p>Hanya catatan untuk lot dan Lab ini. Cocokkan dengan label sampel fisik; label draft belum diverifikasi.</p>

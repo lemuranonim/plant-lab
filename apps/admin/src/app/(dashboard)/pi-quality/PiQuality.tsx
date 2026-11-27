@@ -9,10 +9,11 @@ import { statusLabel } from '@/lib/workflowPresentation';
 import type {TswRaw} from '@/lib/piTsw';
 import TswWeights,{TswSummary} from './TswWeights';
 import TswFormDownload from './TswFormDownload';
+import { LabPiSources, LabPiSourceReview } from './LabPiSources';
 
 type Lot = { id: string; lot_code: string; site_code: string; product_name: string; crop_category_code: string; can_write: boolean };
-type Evidence = { id: string; path: string; filename: string; captured_at: string; bytes: number };
-type RecordValue = {
+export type Evidence = { id: string; path: string; filename: string; captured_at: string; bytes: number };
+export type RecordValue = {
   id: string; test_code: string; lot_id: string; lot_code: string; site_code: string; test_type: string; numeric_value: number | null; unit_code: string;
   tested_at: string; attempt_no: number; revision_of_id: string | null; material_form: string; crop_kind: string; programme: string;
   method_reference: string; equipment_reference: string; notes: string; seed_count: number | null;
@@ -23,6 +24,7 @@ type RecordValue = {
   lab_reviews: { request_id: string; decision: string; reason: string; reviewed_at: string }[];
   tsw_raw?: TswRaw|null;
 };
+export type PiReview = { record: RecordValue; requestId?: string; decision: string; reason: string; action: string };
 type Options = { lots: Lot[]; evidence_bucket: string; max_image_bytes: number; pp_components: string[] };
 type Draft = { id: string; lot_id: string; test_type: string; material_form: string; crop_kind: string; programme: string;
   numeric_value: string; tested_at: string; method_reference: string; equipment_reference: string; notes: string;
@@ -62,21 +64,22 @@ export default function PiQuality({ variant }: { variant: 'PLANT' | 'LAB' }) {
   const [options, setOptions] = useState<Options>();
   const [records, setRecords] = useState<RecordValue[]>([]);
   const [total, setTotal] = useState(0); const [offset, setOffset] = useState(0);
+  const [loadedOffset, setLoadedOffset] = useState<number | null>(null);
   const [draft, setDraft] = useState<Draft>(blank); const [saved, setSaved] = useState<RecordValue>();
   const [error, setError] = useState(''); const [notice, setNotice] = useState(''); const [busy, setBusy] = useState(false);
   const [uploads, setUploads] = useState<Upload[]>([]); const [capturedAt, setCapturedAt] = useState('');
   const [signed, setSigned] = useState<{ path: string; url: string }>();
-  const [review, setReview] = useState<{ record: RecordValue; requestId?: string; decision: string; reason: string; action: string }>();
+  const [review, setReview] = useState<PiReview>();
   const action = useRef<{ fingerprint: string; id: string } | null>(null);
   const errorPanel = useRef<HTMLDivElement>(null);
   const reviewOpen = !!review;
   useEffect(() => { if (error && !reviewOpen) errorPanel.current?.scrollIntoView({ block: 'center' }); }, [error, reviewOpen]);
   const load = useCallback(async () => {
     const page = await fetchPage(offset);
-    setOptions(page.options); setRecords(page.records); setTotal(page.total);
+    setOptions(page.options); setRecords(page.records); setTotal(page.total); setLoadedOffset(offset);
   }, [offset]);
   useEffect(() => { let active = true; fetchPage(offset).then(page => {
-    if (active) { setOptions(page.options); setRecords(page.records); setTotal(page.total); }
+    if (active) { setOptions(page.options); setRecords(page.records); setTotal(page.total); setLoadedOffset(offset); }
   }).catch(e => { if (active) setError(message(e)); }); return () => { active = false; }; }, [offset]);
   const writable = variant === 'PLANT' && canonicalWritesEnabled ? options?.lots.filter(l => l.can_write) ?? [] : [];
   const change = (key: keyof Draft, value: string) => { setDraft(d => ({ ...d, [key]: value })); setNotice(''); };
@@ -155,14 +158,38 @@ export default function PiQuality({ variant }: { variant: 'PLANT' | 'LAB' }) {
       setReview(undefined); setNotice('Review sumber tercatat. Nilai PI, hasil Lab dan status release lot tidak diubah.'); await load();
     } catch (e) { setError(message(e)); } finally { setBusy(false); }
   }
+  if (variant === 'LAB') {
+    return <>
+      <LabPiSources
+        records={records} total={total} offset={offset} pageReady={loadedOffset === offset}
+        busy={busy} error={reviewOpen ? '' : error} notice={notice} errorRef={errorPanel}
+        componentLabels={labels} signed={signed}
+        onEvidence={viewEvidence}
+        onRetry={async () => {
+          setBusy(true); setError('');
+          try { await load(); } catch (e) { setError(message(e)); }
+          finally { setBusy(false); }
+        }}
+        onPage={next => { setError(''); setOffset(next); }}
+        onReview={(record, requestId) => {
+          setError('');
+          setReview({ record, requestId, decision: requestId ? 'ACKNOWLEDGED' : 'VERIFIED', reason: '', action: crypto.randomUUID() });
+        }}
+      />
+      {review && <LabPiSourceReview review={review} busy={busy} error={error}
+        onChange={patch => setReview(v => v && ({ ...v, ...patch, action: crypto.randomUUID() }))}
+        onClose={() => { setReview(undefined); setError(''); }}
+        onSave={sendReview} />}
+    </>;
+  }
   return <div className={styles.page}>
-    <header><Link href="/lab-requests">← Antrean Lab</Link><h1>{variant === 'PLANT' ? 'Mutu PI · PP / MC / TSW' : 'Review Sumber Mutu Plant'}</h1>
+    <header><Link href="/lab-requests">← Antrean Lab</Link><h1>Mutu PI · PP / MC / TSW</h1>
       <p>PI mencatat pengukuran dan bukti. SPV memverifikasi sumber; Lab membaca dan memberi catatan tanpa mengetik ulang nilai Plant.</p></header>
     <aside className={styles.guide}><strong>Arti pengukuran</strong><p>PP = kemurnian fisik · MC = kadar air · TSW = berat 1.000 benih. Verifikasi sumber bukan persetujuan hasil uji Lab atau pelepasan lot.</p></aside>
     {error && <div ref={errorPanel} role="alert" className={styles.error}>{error}<button disabled={busy} onClick={() => load().catch(e => setError(message(e)))}>Muat ulang daftar</button></div>}
     {notice && <div role="status" className={styles.notice}>{notice}</div>}
-    {options && writable.length === 0 && <section className={styles.card}><h2>{variant === 'LAB' ? 'Sumber tetap milik PI' : 'Akses input khusus PI'}</h2>
-      <p>{variant === 'LAB' ? 'Hanya sumber yang terkait permintaan dalam cakupan Lab Anda ditampilkan. QA dapat mengonfirmasi sumber yang sudah diverifikasi SPV; tindakan ini bukan approval hasil uji Lab.' : 'Akun ini belum memiliki penugasan PLANT_PI yang valid. Operator dan SPV tidak otomatis mendapat hak input PP/MC/TSW. Daftar dan review tetap mengikuti izin masing-masing.'}</p></section>}
+    {options && writable.length === 0 && <section className={styles.card}><h2>Akses input khusus PI</h2>
+      <p>Akun ini belum memiliki penugasan PLANT_PI yang valid. Operator dan SPV tidak otomatis mendapat hak input PP/MC/TSW. Daftar dan review tetap mengikuti izin masing-masing.</p></section>}
     {writable.length > 0 && <section className={styles.card} aria-label="Form pengukuran PI"><h2>{draft.revision_of_id ? 'Revisi · pengukuran baru' : 'Catat pengukuran PI'}</h2>
       <p>Input online, bukan impor histori. PP adalah angka terukur (%); aplikasi tidak menghitung 100 dikurangi seluruh defect. Komponen di bawah dalam gram, bukan jumlah kernel.</p>
       <fieldset disabled={busy || !!saved && !saved.can_write}><div className={styles.grid}>
@@ -209,7 +236,6 @@ export default function PiQuality({ variant }: { variant: 'PLANT' | 'LAB' }) {
           {r.can_write && <button disabled={busy} onClick={() => edit(r)}>Lanjutkan draft</button>}
           {r.can_revise && <button disabled={busy} onClick={() => edit(r, true)}>Buat attempt revisi</button>}
           {canonicalWritesEnabled && r.can_review && <button disabled={busy} onClick={() => setReview({ record: r, decision: 'VERIFIED', reason: '', action: crypto.randomUUID() })}>Review sumber PI</button>}
-          {canonicalWritesEnabled && variant === 'LAB' && r.lab_requests.filter(q => q.can_review).map(q => <button key={q.id} disabled={busy} onClick={() => setReview({ record: r, requestId: q.id, decision: 'ACKNOWLEDGED', reason: '', action: crypto.randomUUID() })}>Review sumber · {q.request_code}</button>)}
         </div>
       </article>)}</div>
       <div className={styles.actions}><button disabled={busy || offset === 0} onClick={() => setOffset(o => Math.max(0, o - 20))}>Sebelumnya</button><span>{total ? offset + 1 : 0}–{Math.min(offset + 20, total)} / {total}</span><button disabled={busy || offset + 20 >= total} onClick={() => setOffset(o => o + 20)}>Berikutnya</button></div>

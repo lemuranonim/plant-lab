@@ -27,4 +27,34 @@
 .referenceField{min-width:0;grid-column:1/-1}.referenceField small{line-height:1.6;color:var(--text-secondary)}
 .referenceDialog{width:min(620px,calc(100% - 32px));max-height:85dvh;overflow:auto;padding:24px;border:1px solid var(--border);border-radius:14px;background:var(--bg-surface);color:var(--text-primary);margin:auto;overflow-wrap:anywhere}
 .referenceDialog::backdrop{background:rgb(0 0 0 / .55)}.referenceDialog p{line-height:1.6}.referenceResults{display:grid;gap:10px;min-width:0}.referenceResults button{width:100%}
+.firstCount,.finalLabel,.countTotal{grid-column:1/-1}
+.observationHeading{margin-bottom:6px}
+.firstCount{padding-bottom:14px;border-bottom:1px solid var(--border)}
+.firstCount label{width:min(100%,220px)}
+.finalLabel{font-weight:700;font-size:.85rem}
+.countTotal{margin:0;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-surface);font-size:.84rem;font-weight:600}
+.countTotal[data-overflow="true"],.editorError{color:var(--danger-text,var(--text-primary))}
+.countTotal span{display:block;margin-top:4px}
+.observations textarea{min-height:46px;resize:vertical}
+.editorActions{position:sticky;bottom:0;z-index:4;display:flex;align-items:center;justify-content:space-between;gap:8px 20px;flex-wrap:wrap;padding:12px 14px calc(12px + env(safe-area-inset-bottom));border:1px solid var(--border);border-radius:12px;background:var(--bg-surface);box-shadow:var(--shadow-md,0 5px 20px rgb(0 0 0 / .12))}
+.editorActions p{margin:0;font-size:.85rem;color:var(--text-secondary)}
+.editorActions .editorError{flex-basis:100%;color:var(--danger-text,var(--text-primary))}
+.editorProgress{min-width:0}
+.editorProgress strong{font-family:var(--lab-mono,monospace);font-size:.85rem}
+.editorButtons{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.editorActions button{white-space:normal}
+.panel:has(.editorActions) :is(input,select,textarea){scroll-margin-bottom:170px}
+.observations input[type="number"]::-webkit-inner-spin-button,.observations input[type="number"]::-webkit-outer-spin-button{appearance:none;margin:0}
 @media(max-width:700px){.workspace{padding:16px;gap:16px}.panel,.notice{padding:18px}.fields,.observations,.lots{grid-template-columns:1fr}.search{align-items:stretch;flex-direction:column}}
+@media(max-height:480px){.editorActions{position:static}}
+
+:global([data-lab-workspace]) .workspace { padding: 0; gap: clamp(14px, 2vw, 24px); }
+:global([data-lab-workspace]) .workspace > header { background: var(--lab-hero); border: 1px solid var(--border); padding: clamp(16px, 4vw, 32px); border-radius: var(--lab-radius); }
+:global([data-lab-workspace]) .workspace > header .eyebrow { color: var(--accent-dark); }
+:global([data-lab-workspace]) .workspace > header h1 { font-size: clamp(1.55rem, 3.8vw, 2.25rem); }
+:global([data-lab-workspace]) :is(.panel,.notice,.lot,.workflow,.summary) { border-radius: var(--lab-radius); }
+:global([data-lab-workspace]) .panel { box-shadow: var(--shadow-sm); }
+:global([data-lab-workspace]) .notice { background: var(--lab-soft); border-left: 1px solid var(--border); }
+:global([data-lab-workspace]) .observations fieldset { background: var(--lab-soft); border-radius: var(--lab-input-radius); }
+:global([data-lab-workspace]) .observations input[type="number"], :global([data-lab-workspace]) .summary strong { font-family: var(--lab-mono); font-variant-numeric: tabular-nums; }
+:global([data-lab-workspace]) .workspace input[type="number"] { appearance: textfield; }

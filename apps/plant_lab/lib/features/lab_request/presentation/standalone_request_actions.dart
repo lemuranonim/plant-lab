@@ -341,7 +341,7 @@ class _StandaloneAcceptButtonState extends State<StandaloneAcceptButton> {
   }
 
   @override
-  Widget build(BuildContext context) => TextButton(
+  Widget build(BuildContext context) => FilledButton(
     onPressed: _busy ? null : _accept,
     child: Text(_busy ? 'Memproses…' : 'Terima permintaan'),
   );

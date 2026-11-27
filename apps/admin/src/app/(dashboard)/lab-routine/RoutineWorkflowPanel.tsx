@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client';
 import { canonicalWritesEnabled, isolatedApiSchema } from '@/lib/supabase/config';
 import { routineStatus,routinePurpose,routineRevalidationNotes, wibInput, type RoutineDraft, type RoutineReadiness, type RoutineSummary } from '@/lib/routineLabDraft';
 import styles from './routine.module.css';
+import reviewStyles from './routine-review.module.css';
+import { RoutineReviewEvidence, RoutineReviewSummary, toleranceLabel } from './RoutineReviewEvidence';
 
 export function RoutineSummaryView({ summary }: { summary: RoutineSummary }) {
   const value = summary.germination_percent ?? summary.vigour_percent;
@@ -33,6 +35,9 @@ export default function RoutineWorkflowPanel({ draft, disabled, onChanged }: {
   const formReview=draft.content.form?.version===1;
   const attempt = useRef<{ text: string; action: string } | null>(null);
   const workflow = draft.workflow;
+  const reviewing = !!workflow?.can_review && canonicalWritesEnabled;
+  const canApprove = workflow?.summary?.within_tolerance === true;
+  const canDecide = confirmed && reason.trim().length >= 3 && (!formReview || reviewerName.trim().length >= 2);
   async function inspect() {
     if (busy || disabled) return;
     setBusy(true); setError(''); setConfirmed(false);
@@ -68,7 +73,7 @@ export default function RoutineWorkflowPanel({ draft, disabled, onChanged }: {
       <ul>{draft.content.form.annotations.map((a,i)=><li key={i}>Subulangan {Math.floor(i/2)+1}{i%2?'b':'a'} · jenis abnormal: {a.abnormal_kind ?? 'belum dicatat'} · catatan: {a.remarks ?? 'belum dicatat'}</li>)}</ul>
     </details>}
     {workflow && <><p><strong>{routineStatus(workflow.status)}</strong> · {workflow.run_code} · percobaan {workflow.attempt_no}</p>
-      {workflow.summary && <RoutineSummaryView summary={workflow.summary} />}
+      {workflow.summary && (reviewing ? <RoutineReviewSummary summary={workflow.summary} /> : <RoutineSummaryView summary={workflow.summary} />)}
       {workflow.review_reason && <p>Catatan QA: {workflow.review_reason}</p>}
       {workflow.reviewed_at && <p>Diperiksa {wibInput(workflow.reviewed_at).replace('T', ' ')} WIB</p>}
       <details><summary>Jejak pencatatan</summary><p>ID Analis: {workflow.analyst_id}<br />ID QA: {workflow.reviewer_id ?? 'belum ada'}<br />Run sebelumnya: {workflow.parent_run_id ?? 'pengujian awal'}</p></details>
@@ -87,16 +92,20 @@ export default function RoutineWorkflowPanel({ draft, disabled, onChanged }: {
       <button type="button" className="btn btn-primary" disabled={busy || disabled || !check.ready || !confirmed}
         onClick={() => void command('submit_routine_lab_draft', { p_draft_id: draft.id, p_expected_revision: check.revision, p_actual_work_confirmed: confirmed })}>Kirim revisi ini ke QA</button>
     </section>}
-    {workflow?.can_review && canonicalWritesEnabled && <fieldset disabled={busy || disabled}>
+    {reviewing && workflow && <>
+    <RoutineReviewEvidence content={draft.content} ret={draft.method_code === 'RET_16C_72H'} />
+    <fieldset disabled={busy || disabled}>
       <legend>Pemeriksaan QA independen</legend>
+      {!canApprove && <p className={reviewStyles.decisionNote}>{toleranceLabel(workflow.summary?.within_tolerance)}. Persetujuan ditahan; QA masih bisa meminta uji ulang.</p>}
       {formReview&&<label>Nama pemeriksa pada form<input value={reviewerName} maxLength={120} onChange={e=>setReviewerName(e.target.value)}/></label>}
       <label>Catatan pemeriksaan / alasan uji ulang<textarea value={reason} onChange={e => setReason(e.target.value)} minLength={3} maxLength={1000} /></label>
       <label className={styles.check}><input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} />Saya sudah memeriksa identitas sampel, hitungan, kondisi, waktu nyata, dan toleransi.</label>
-      <div className={styles.actions}><button type="button" className="btn btn-primary" disabled={!confirmed || reason.trim().length < 3 || (formReview&&reviewerName.trim().length<2) || workflow.summary?.within_tolerance !== true}
+      <p className={reviewStyles.subtle}>Keputusan ini untuk hasil analisis, bukan pelepasan lot.</p>
+      <div className={styles.actions}><button type="button" className="btn btn-primary" disabled={!canDecide || !canApprove}
         onClick={() => void command(formReview?'review_routine_lab_form_result':'review_routine_lab_result', { p_run_id: workflow.run_id, p_decision: 'APPROVE', p_reason: reason, p_protocol_checked: confirmed,...(formReview?{p_reviewer_name:reviewerName}:{} ) })}>Setujui analisis</button>
-      <button type="button" className="btn" disabled={!confirmed || reason.trim().length < 3 || (formReview&&reviewerName.trim().length<2)}
+      <button type="button" className="btn" disabled={!canDecide}
         onClick={() => void command(formReview?'review_routine_lab_form_result':'review_routine_lab_result', { p_run_id: workflow.run_id, p_decision: 'RETEST', p_reason: reason, p_protocol_checked: confirmed,...(formReview?{p_reviewer_name:reviewerName}:{} ) })}>Minta uji ulang</button></div>
-    </fieldset>}
+    </fieldset></>}
     {workflow?.can_retest && canonicalWritesEnabled && <button type="button" className="btn" disabled={busy || disabled}
       onClick={() => void command('create_routine_retest_draft', { p_run_id: workflow.run_id })}>Buat catatan uji ulang</button>}
   </div>;

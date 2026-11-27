@@ -6,6 +6,22 @@ export type MonitorSummary={total:number;active:number;waiting_sample:number;wai
 export type MonitorPage={version:1;read_only:true;sla_applied:false;authorizes_lot_release:false;grain:'ONE_TEST_ATTEMPT_OR_UNSTARTED_ITEM_OR_DRAFT';selected_lab_site_id:string;lab_sites:{id:string;site_name:string}[];method_options:{method_code:string;method_name:string}[];entries:MonitorEntry[];summary:MonitorSummary;total:number;offset:number;limit:number;has_more:boolean;as_of:string};
 export function monitorArgs(f:MonitorFilters,offset=0){return {p_lab_site_id:f.site||null,p_search:f.search.trim(),p_from:f.from||null,p_to:f.to||null,p_date_basis:f.date_basis,p_origin:f.origin,p_method:f.method,p_work_group:f.work_group,p_offset:offset,p_limit:50};}
 export function hoursLabel(value:number|null){if(value===null)return 'Belum dapat dihitung';const n=new Intl.NumberFormat('id-ID',{maximumFractionDigits:3});return value>=24?`${n.format(value/24)} hari (${n.format(value)} jam)`:`${n.format(value)} jam`;}
+export const monitorQuickGroups = [
+ ['ALL','Semua'], ['ACTIVE','Belum selesai'], ['WAITING_QA','Menunggu QA'], ['RETEST','Perlu uji ulang'],
+] as const;
+
+export function monitorFocus(entry: MonitorEntry): { label: string; hours?: number | null; since?: string | null; warning?: boolean } | null {
+ if (entry.clock_issue) return { label: 'Urutan waktu perlu diperiksa', warning: true };
+ switch (entry.work_group) {
+  case 'WAITING_SAMPLE': return { label: entry.received_at ? 'Periksa status serah terima' : 'Penerimaan sampel belum tercatat' };
+  case 'WAITING_QA': return { label: 'Sudah menunggu QA', hours: entry.waiting_qa_hours, since: entry.submitted_at };
+  case 'RETEST': return { label: 'Sejak QA meminta uji ulang', hours: entry.retest_wait_hours, since: entry.decision_at };
+  case 'WAITING_TEST':
+  case 'TESTING': return { label: 'Sejak sampel diterima, belum kirim hasil', hours: entry.open_sample_hours, since: entry.received_at };
+  case 'RETURNED': return { label: 'Perlu perbaikan catatan', since: entry.decision_at };
+  default: return null;
+ }
+}
 export function validateMonitorPage(p:MonitorPage){
  if(!p||p.version!==1||p.read_only!==true||p.sla_applied!==false||p.authorizes_lot_release!==false||p.grain!=='ONE_TEST_ATTEMPT_OR_UNSTARTED_ITEM_OR_DRAFT'||!p.selected_lab_site_id||!Array.isArray(p.entries)||!Array.isArray(p.lab_sites)||!Array.isArray(p.method_options)||p.summary.total!==p.total||p.entries.length>p.limit||!Number.isInteger(p.total)||p.total<0||!Number.isFinite(Date.parse(p.as_of)))throw Error('MONITOR_SOURCE');
  if(p.entries.some(e=>!workGroups[e.work_group]||[e.open_sample_hours,e.waiting_qa_hours,e.retest_wait_hours,e.sample_to_submit_hours,e.qa_tat_hours].some(v=>v!==null&&(!Number.isFinite(v)||v<0)))||p.summary.analytical_decisions<p.summary.retest_decisions)throw Error('MONITOR_CLOCK');

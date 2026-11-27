@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'lab_workspace_widgets.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/database/supabase_client.dart';
 import 'routine_lab_screen.dart';
+import 'workflow_presentation.dart';
 
 Map<String, dynamic> emptyRequestGerminationDetail() => {
   'version': 1,
@@ -81,9 +83,15 @@ class _RequestGerminationDetailScreenState
   final fields = <String, TextEditingController>{},
       rows = <Map<String, TextEditingController>>[];
   final reviewer = TextEditingController(), reason = TextEditingController();
+  final reviewSection = GlobalKey();
+  final identitySection = GlobalKey(),
+      timeSection = GlobalKey(),
+      countsSection = GlobalKey(),
+      saveSection = GlobalKey();
   bool busy = false, dirty = false, confirmed = false, changed = false;
   String decision = 'APPROVE';
   String? error, message, action, previous;
+  String? feedbackAction;
   bool get editable =>
       record?['can_edit'] == true && AppConfig.canonicalWritesEnabled;
   bool get canReview =>
@@ -174,6 +182,7 @@ class _RequestGerminationDetailScreenState
     setState(() {
       busy = true;
       error = null;
+      feedbackAction = null;
     });
     try {
       await read();
@@ -266,7 +275,10 @@ class _RequestGerminationDetailScreenState
         },
       };
     } on FormatException catch (e) {
-      setState(() => error = e.message);
+      setState(() {
+        feedbackAction = operation;
+        error = e.message;
+      });
       return;
     }
     final payload = jsonEncode({'operation': operation, ...args});
@@ -275,8 +287,10 @@ class _RequestGerminationDetailScreenState
       action = const Uuid().v4();
     }
     args['p_action_id'] = action;
+    FocusScope.of(context).unfocus();
     setState(() {
       busy = true;
+      feedbackAction = operation;
       error = null;
       message = null;
     });
@@ -318,6 +332,55 @@ class _RequestGerminationDetailScreenState
     }
   }
 
+  // If a successful action removes its own button, keep the result visible at the top.
+  bool get feedbackAtTop => switch (feedbackAction) {
+    'SAVE' || 'SUBMIT' => !editable,
+    'REVIEW' => !canReview,
+    _ => true,
+  };
+
+  Widget feedback() {
+    if (error == null && message == null) return const SizedBox.shrink();
+    return Semantics(
+      liveRegion: true,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (error != null)
+              Text(
+                error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            if (message != null) Text(message!),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget observationField({
+    Key? key,
+    required TextEditingController? controller,
+    required String label,
+    int? maxLength,
+    int maxLines = 1,
+    TextInputType? keyboardType,
+  }) {
+    if (!editable) return LabRecordValue(label, controller?.text, key: key);
+    return TextField(
+      key: key,
+      controller: controller,
+      enabled: !busy,
+      maxLength: maxLength,
+      maxLines: maxLines,
+      keyboardType: keyboardType,
+      decoration: InputDecoration(labelText: label),
+      onChanged: (_) => touch(),
+    );
+  }
+
   Future<void> pick(String key) async {
     if (busy || !editable) return;
     final now = DateTime.now().toUtc().add(const Duration(hours: 7));
@@ -341,6 +404,17 @@ class _RequestGerminationDetailScreenState
       time.minute,
     ).subtract(const Duration(hours: 7)).toIso8601String();
     touch();
+  }
+
+  AppBar _observationAppBar(BuildContext context) {
+    final lot = record?['lot_code'] as String?;
+    final title = 'Pengamatan ${widget.vigour ? 'Vigor' : 'Germinasi'}';
+    return AppBar(
+      toolbarHeight: lot == null ? null : LabLotTitle.toolbarHeight(context),
+      title: lot == null
+          ? Text(title)
+          : LabLotTitle(lot: lot, reference: title),
+    );
   }
 
   @override
@@ -372,246 +446,289 @@ class _RequestGerminationDetailScreenState
       }
     },
     child: Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Pengamatan ${widget.vigour ? 'Vigor' : 'Germinasi'} request',
-        ),
-      ),
-      body: ListView(
+      appBar: _observationAppBar(context),
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        children: [
-          Text(widget.runCode),
-          if (record != null)
-            Text(
-              'Lot: ${record!['lot_code']} · Sampel: ${record!['sample_reference']}\n${record!['request_code']} · ${record!['lab_name']}',
-            ),
-          const Text(
-            '2 × 100 benih. Tanggal adalah waktu pekerjaan nyata, bukan jam menekan tombol. '
-            'First count tidak ditambah ke final. Normal + abnormal + fresh + hard + mati =100 tiap ulangan.',
-          ),
-          if (widget.vigour && record != null)
-            Text(
-              'Mulai perlakuan: ${routineWib(record!["treatment_started_at"] as String?)}. '
-              'Tanggal tanam dicatat terpisah. Suhu diisi sesuai kondisi aktual, tidak otomatis 25 °C.',
-            ),
-          if (busy) const LinearProgressIndicator(),
-          if (error != null) Text(error!),
-          if (message != null) Text(message!),
-          TextButton(
-            onPressed: busy ? null : load,
-            child: const Text('Muat ulang rincian pengamatan'),
-          ),
-          if (record != null && content == null)
-            const Text(
-              'Catatan lama belum memiliki rincian aktual. '
-              'Tanggal tanam, fresh/hard dan nama yang belum dicatat tidak dibuat otomatis; hasil lama tetap dipertahankan.',
-            ),
-          if (content != null) ...[
-            Text(
-              'Revisi tersimpan ${record!['revision']}${dirty ? ' · ada perubahan belum disimpan' : ''}',
-            ),
-            for (final e in textLabels.entries)
-              Padding(
-                padding: const EdgeInsets.only(top: 14),
-                child: TextField(
-                  controller: fields[e.key],
-                  enabled: editable && !busy,
-                  maxLength: e.key == 'note' ? 1000 : 120,
-                  maxLines: e.key == 'note' ? 3 : 1,
-                  decoration: InputDecoration(labelText: e.value),
-                  onChanged: (_) => touch(),
-                ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(widget.runCode),
+            if (record != null)
+              Text(
+                'Sampel: ${record!['sample_reference']}\n${record!['request_code']} · ${record!['lab_name']}',
               ),
-            for (final e in dateLabels.entries)
-              Padding(
-                padding: const EdgeInsets.only(top: 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+            if (widget.vigour && record != null)
+              Text(
+                'Mulai perlakuan: ${routineWib(record!["treatment_started_at"] as String?)}',
+              ),
+            if (busy) const LinearProgressIndicator(),
+            if (feedbackAtTop) feedback(),
+            TextButton(
+              onPressed: busy ? null : load,
+              child: const Text('Muat ulang rincian pengamatan'),
+            ),
+            if (record != null && content == null)
+              const Text(
+                'Catatan lama belum memiliki rincian aktual. '
+                'Tanggal tanam, fresh/hard dan nama yang belum dicatat tidak dibuat otomatis; hasil lama tetap dipertahankan.',
+              ),
+            if (content != null) ...[
+              Text(
+                'Revisi tersimpan ${record!['revision']}${dirty ? ' · ada perubahan belum disimpan' : ''}',
+              ),
+              if (!editable)
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
-                    Text(e.value),
-                    Text(routineWib(content![e.key] as String?)),
-                    Wrap(
-                      children: [
-                        TextButton.icon(
-                          onPressed: editable && !busy
-                              ? () => pick(e.key)
-                              : null,
-                          icon: const Icon(Icons.calendar_month),
-                          label: const Text('Pilih tanggal / jam'),
-                        ),
-                        if (editable && content![e.key] != null)
-                          TextButton(
-                            onPressed: busy
-                                ? null
-                                : () {
-                                    content![e.key] = null;
-                                    touch();
-                                  },
-                            child: const Text('Hapus waktu'),
+                    const LabLabel('Pengamatan · Baca saja'),
+                    if (canReview)
+                      const WorkflowStatusBadge(status: 'IN_REVIEW'),
+                  ],
+                ),
+              LabFormSections(
+                sections: [
+                  'Identitas',
+                  'Waktu (WIB)',
+                  'Ulangan',
+                  if (editable) 'Ke tombol simpan',
+                  if (canReview) 'Ke keputusan QA',
+                ],
+                targets: [
+                  identitySection,
+                  timeSection,
+                  countsSection,
+                  if (editable) saveSection,
+                  if (canReview) reviewSection,
+                ],
+              ),
+              if (editable)
+                LabHelp(
+                  text:
+                      'Isi waktu kejadian aktual. Normal + abnormal + fresh + hard + mati = 100 tiap ulangan.'
+                      '${widget.vigour ? ' Tanggal tanam berbeda dari mulai perlakuan. Isi suhu aktual, bukan otomatis 25 °C.' : ''}',
+                ),
+              LabFormCard(
+                key: identitySection,
+                title: 'Identitas pengujian',
+                icon: Icons.badge_outlined,
+                children: [
+                  for (final e in textLabels.entries)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 14),
+                      child: observationField(
+                        controller: fields[e.key],
+                        maxLength: e.key == 'note' ? 1000 : 120,
+                        maxLines: e.key == 'note' ? 3 : 1,
+                        label: e.value,
+                      ),
+                    ),
+                ],
+              ),
+              LabFormCard(
+                key: timeSection,
+                title: 'Waktu pengujian (WIB)',
+                icon: Icons.schedule_outlined,
+                children: [
+                  for (final e in dateLabels.entries)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          LabRecordValue(
+                            e.value,
+                            routineWib(content![e.key] as String?),
+                          ),
+                          if (editable)
+                            Wrap(
+                              children: [
+                                TextButton.icon(
+                                  onPressed: busy ? null : () => pick(e.key),
+                                  icon: const Icon(Icons.calendar_month),
+                                  label: const Text('Pilih tanggal / jam'),
+                                ),
+                                if (content![e.key] != null)
+                                  TextButton(
+                                    onPressed: busy
+                                        ? null
+                                        : () {
+                                            content![e.key] = null;
+                                            touch();
+                                          },
+                                    child: const Text('Hapus waktu'),
+                                  ),
+                              ],
+                            ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+              for (final (i, row) in rows.indexed)
+                LabFormCard(
+                  key: i == 0 ? countsSection : null,
+                  title: 'Ulangan ${i + 1} · 100 benih',
+                  icon: Icons.grass_outlined,
+                  hint: i == 0
+                      ? 'Kosong bukan nol. First count tidak ditambah ke final.'
+                      : null,
+                  children: [
+                    LabFieldGrid(
+                      fields: [
+                        for (final e in countLabels.entries)
+                          observationField(
+                            key: ValueKey('request-count-$i-${e.key}'),
+                            controller: row[e.key],
+                            keyboardType: TextInputType.number,
+                            label: e.value,
                           ),
                       ],
                     ),
+                    for (final k in ['abnormal_kind', 'remarks'])
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: observationField(
+                          controller: row[k],
+                          maxLength: 500,
+                          maxLines: 2,
+                          label: k == 'remarks'
+                              ? 'Catatan ulangan'
+                              : editable
+                              ? 'Jenis abnormal (wajib bila abnormal > 0)'
+                              : 'Jenis abnormal',
+                        ),
+                      ),
                   ],
                 ),
-              ),
-            for (final (i, row) in rows.indexed)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Ulangan ${i + 1} · 100 benih',
-                        style: Theme.of(context).textTheme.titleMedium,
+              if (editable)
+                FilledButton(
+                  key: saveSection,
+                  onPressed: busy ? null : () => invoke('SAVE'),
+                  child: const Text('Simpan rincian pengamatan'),
+                ),
+              if (editable && feedbackAction == 'SAVE') feedback(),
+              if (record!['reviewer_name'] != null)
+                Text('Nama pemeriksa QA: ${record!['reviewer_name']}'),
+              if (editable) ...[
+                const Text('Kirim ke QA dari revisi tersimpan.'),
+                for (final b in record!['readiness']['blockers'] as List)
+                  Text('$b'),
+                for (final w in record!['readiness']['warnings'] as List)
+                  Text('$w'),
+                if (dirty)
+                  const Text('Simpan perubahan dahulu sebelum mengirim.'),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: confirmed,
+                  onChanged:
+                      busy ||
+                          dirty ||
+                          record!['revision'] == 0 ||
+                          record!['readiness']['ready'] != true
+                      ? null
+                      : (v) => setState(() => confirmed = v == true),
+                  title: const Text(
+                    'Saya sudah memeriksa revisi tersimpan dan pengamatan ini benar-benar dilakukan.',
+                  ),
+                ),
+                FilledButton(
+                  onPressed:
+                      busy ||
+                          dirty ||
+                          !confirmed ||
+                          record!['readiness']['ready'] != true
+                      ? null
+                      : () => invoke('SUBMIT'),
+                  child: const Text('Kirim revisi ini ke QA'),
+                ),
+                if (feedbackAction == 'SUBMIT') feedback(),
+              ],
+              if (canReview)
+                LabFormCard(
+                  key: reviewSection,
+                  title: 'Pemeriksaan QA · revisi ${record!['revision']}',
+                  icon: Icons.fact_check_outlined,
+                  hint:
+                      'Persetujuan ini untuk hasil analisis, bukan pelepasan lot.',
+                  children: [
+                    TextField(
+                      controller: reviewer,
+                      enabled: !busy,
+                      maxLength: 120,
+                      decoration: const InputDecoration(
+                        labelText: 'Nama pemeriksa QA',
                       ),
-                      for (final e in countLabels.entries)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 12),
-                          child: TextField(
-                            key: ValueKey('request-count-$i-${e.key}'),
-                            controller: row[e.key],
-                            enabled: editable && !busy,
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(labelText: e.value),
-                            onChanged: (_) => touch(),
-                          ),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    DropdownButtonFormField<String>(
+                      initialValue: decision,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Keputusan QA',
+                      ),
+                      items: [
+                        DropdownMenuItem(
+                          value: 'APPROVE',
+                          enabled: widget.canApprove,
+                          child: const Text('Setujui analisis'),
                         ),
-                      for (final k in ['abnormal_kind', 'remarks'])
-                        Padding(
-                          padding: const EdgeInsets.only(top: 12),
-                          child: TextField(
-                            controller: row[k],
-                            enabled: editable && !busy,
-                            maxLength: 500,
-                            maxLines: 2,
-                            decoration: InputDecoration(
-                              labelText: k == 'remarks'
-                                  ? 'Catatan ulangan'
-                                  : 'Jenis abnormal (wajib bila abnormal > 0)',
-                            ),
-                            onChanged: (_) => touch(),
-                          ),
+                        const DropdownMenuItem(
+                          value: 'RETEST',
+                          child: Text('Minta uji ulang'),
                         ),
-                    ],
-                  ),
+                      ],
+                      onChanged: busy
+                          ? null
+                          : (v) => setState(() {
+                              decision = v!;
+                              confirmed = false;
+                            }),
+                    ),
+                    TextField(
+                      controller: reason,
+                      enabled: !busy,
+                      maxLength: 500,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'Catatan QA / alasan uji ulang',
+                      ),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    if (!widget.canApprove)
+                      const Text(
+                        'Approval ditahan karena toleransi tidak tersedia atau terlampaui. Pilih uji ulang dengan alasan.',
+                      ),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: confirmed,
+                      onChanged: busy
+                          ? null
+                          : (v) => setState(() => confirmed = v == true),
+                      title: const Text(
+                        'Saya sudah memeriksa identitas, waktu aktual dan seluruh pengamatan. Persetujuan analisis bukan pelepasan lot.',
+                      ),
+                    ),
+                    FilledButton(
+                      onPressed:
+                          busy ||
+                              !confirmed ||
+                              reviewer.text.trim().isEmpty ||
+                              (widget.vigour &&
+                                  reason.text.trim().length < 3) ||
+                              (decision == 'RETEST'
+                                  ? reason.text.trim().isEmpty
+                                  : !widget.canApprove)
+                          ? null
+                          : () => invoke('REVIEW'),
+                      child: const Text('Simpan keputusan QA'),
+                    ),
+                    if (feedbackAction == 'REVIEW') feedback(),
+                  ],
                 ),
-              ),
-            if (editable)
-              FilledButton(
-                onPressed: busy ? null : () => invoke('SAVE'),
-                child: const Text('Simpan rincian pengamatan'),
-              ),
-            if (record!['reviewer_name'] != null)
-              Text('Nama pemeriksa QA: ${record!['reviewer_name']}'),
-            if (editable) ...[
-              const Text(
-                'Periksa sebelum kirim ke QA. Kesiapan di bawah memakai revisi tersimpan.',
-              ),
-              for (final b in record!['readiness']['blockers'] as List)
-                Text('$b'),
-              for (final w in record!['readiness']['warnings'] as List)
-                Text('$w'),
-              if (dirty)
-                const Text('Simpan perubahan dahulu sebelum mengirim.'),
-              CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                value: confirmed,
-                onChanged:
-                    busy ||
-                        dirty ||
-                        record!['revision'] == 0 ||
-                        record!['readiness']['ready'] != true
-                    ? null
-                    : (v) => setState(() => confirmed = v == true),
-                title: const Text(
-                  'Saya sudah memeriksa revisi tersimpan dan pengamatan ini benar-benar dilakukan.',
-                ),
-              ),
-              FilledButton(
-                onPressed:
-                    busy ||
-                        dirty ||
-                        !confirmed ||
-                        record!['readiness']['ready'] != true
-                    ? null
-                    : () => invoke('SUBMIT'),
-                child: const Text('Kirim revisi ini ke QA'),
-              ),
-            ],
-            if (canReview) ...[
-              Text('Pemeriksaan QA · revisi ${record!['revision']}'),
-              TextField(
-                controller: reviewer,
-                enabled: !busy,
-                maxLength: 120,
-                decoration: const InputDecoration(
-                  labelText: 'Nama pemeriksa QA',
-                ),
-                onChanged: (_) => setState(() {}),
-              ),
-              DropdownButtonFormField<String>(
-                initialValue: decision,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Keputusan QA'),
-                items: [
-                  DropdownMenuItem(
-                    value: 'APPROVE',
-                    enabled: widget.canApprove,
-                    child: const Text('Setujui analisis'),
-                  ),
-                  const DropdownMenuItem(
-                    value: 'RETEST',
-                    child: Text('Minta uji ulang'),
-                  ),
-                ],
-                onChanged: busy
-                    ? null
-                    : (v) => setState(() {
-                        decision = v!;
-                        confirmed = false;
-                      }),
-              ),
-              TextField(
-                controller: reason,
-                enabled: !busy,
-                maxLength: 500,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: 'Catatan QA / alasan uji ulang',
-                ),
-                onChanged: (_) => setState(() {}),
-              ),
-              if (!widget.canApprove)
-                const Text(
-                  'Approval ditahan karena toleransi tidak tersedia atau terlampaui. Pilih uji ulang dengan alasan.',
-                ),
-              CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                value: confirmed,
-                onChanged: busy
-                    ? null
-                    : (v) => setState(() => confirmed = v == true),
-                title: const Text(
-                  'Saya sudah memeriksa identitas, waktu aktual dan seluruh pengamatan. Persetujuan analisis bukan pelepasan lot.',
-                ),
-              ),
-              FilledButton(
-                onPressed:
-                    busy ||
-                        !confirmed ||
-                        reviewer.text.trim().isEmpty ||
-                        (widget.vigour && reason.text.trim().length < 3) ||
-                        (decision == 'RETEST'
-                            ? reason.text.trim().isEmpty
-                            : !widget.canApprove)
-                    ? null
-                    : () => invoke('REVIEW'),
-                child: const Text('Simpan keputusan QA'),
-              ),
             ],
           ],
-        ],
+        ),
       ),
     ),
   );
