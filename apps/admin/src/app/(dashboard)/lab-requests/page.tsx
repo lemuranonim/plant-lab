@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import styles from '../lab-quality/lab-quality.module.css';
+import styles from '../shared-lab.module.css';
 import { requireVariantAccess } from '@/lib/accessContext';
 import { isolatedPlantLab } from '@/lib/supabase/config';
 import CanonicalLabQueue from './CanonicalLabQueue';

@@ -7,7 +7,7 @@ import { isolatedApiSchema, canonicalWritesEnabled } from '@/lib/supabase/config
 import { AcceptRequestButton, SubmitRequestForm, type RequestOptions } from './RequestCommands';
 import { SampleHandoff, type Handoff } from './SampleHandoff';
 import { GerminationPanel, type GerminationRun } from './GerminationPanel';
-import styles from '../lab-quality/lab-quality.module.css';
+import styles from '../shared-lab.module.css';
 import queueStyles from './queue.module.css';
 import lab from '../lab-surface.module.css';
 import { LabHelp } from '../LabUi';
